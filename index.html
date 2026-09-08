@@ -2,7 +2,11 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <!-- viewport-fit=cover es lo que habilita env(safe-area-inset-*). Sin eso,
+       en un teléfono con muesca el juego queda con bandas negras, y con la
+       barra de estado translúcida que pedimos más abajo el HUD se metería
+       debajo de la hora y la señal. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#101114" />
   <title>SMACK! — Reaction Game</title>
   <link rel="manifest" href="./manifest.webmanifest" />
@@ -24,12 +28,18 @@
     }
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overscroll-behavior:none}
-    body{min-height:100vh;display:flex;justify-content:center}
-    #app{width:min(100%,520px);min-height:100vh;position:relative;overflow:hidden;background:
+    /* Nada de texto seleccionable: un toque sostenido sobre una tarjeta
+       abría el menú de selección en medio de la partida. */
+    body{min-height:100vh;min-height:100dvh;display:flex;justify-content:center;-webkit-user-select:none;user-select:none}
+    /* dvh y no vh. En un celular 100vh es la altura de la ventana con la barra
+       de direcciones retraída, o sea más que lo que se ve, así que la página
+       terminaba más alta que el viewport y el canvas, que se dimensiona con
+       innerHeight, no coincidía con la caja del juego. */
+    #app{width:min(100%,520px);min-height:100vh;min-height:100dvh;position:relative;overflow:hidden;background:
       radial-gradient(circle at 50% 40%, rgba(255,255,255,.035), transparent 34%),
       linear-gradient(180deg,#121318,#0e0f12 65%)}
     #game{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
-    .hud{position:absolute;inset:0 0 auto 0;z-index:4;padding:14px 14px 0;pointer-events:none}
+    .hud{position:absolute;inset:0 0 auto 0;z-index:4;padding:calc(14px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 0 calc(14px + env(safe-area-inset-left));pointer-events:none}
     .hudRow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
     .pill{background:rgba(20,22,27,.8);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(8px);border-radius:14px;padding:8px 10px;min-width:82px}
     .pill b{font-size:18px}
@@ -82,7 +92,8 @@
     #fever{display:none;position:absolute;z-index:6;left:50%;top:21%;transform:translateX(-50%) rotate(-2deg);font-size:34px;font-weight:1000;letter-spacing:.04em;text-shadow:0 3px 0 rgba(0,0,0,.25);pointer-events:none}
     #toast{position:absolute;z-index:7;left:50%;top:37%;transform:translate(-50%,-50%);font-size:28px;font-weight:1000;text-align:center;pointer-events:none;opacity:0}
     .smallNote{font-size:12px;color:var(--muted);margin-top:10px}
-    #mute{position:absolute;z-index:9;right:14px;bottom:14px;width:46px;min-height:46px;border-radius:50%;background:rgba(20,22,27,.84);color:var(--text);border:1px solid rgba(255,255,255,.1);font-size:18px;padding:0}
+    /* Separado del indicador de inicio del iPhone, que si no se superpone. */
+    #mute{position:absolute;z-index:9;right:calc(14px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));width:46px;min-height:46px;border-radius:50%;background:rgba(20,22,27,.84);color:var(--text);border:1px solid rgba(255,255,255,.1);font-size:18px;padding:0}
     @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
   </style>
 </head>
