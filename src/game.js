@@ -38,6 +38,11 @@ export const s = {
   hitstop: 0,
   timeScale: 1,
   accumulator: 0,
+  // Destello a pantalla completa y ondas de choque. Son para los momentos que
+  // tienen que sentirse grandes: el boss, el FEVER, el golpe recibido.
+  flashA: 0,
+  flashColor: '255,255,255',
+  waves: [],
   restartArmedAt: 0,
   hurtUntil: 0,        // hasta cuándo el personaje muestra la cara de golpe
   seenVariants: new Set(),
@@ -86,6 +91,8 @@ function reset(seed) {
   s.hitstop = 0;
   s.timeScale = 1;
   s.accumulator = 0;
+  s.flashA = 0;
+  s.waves = [];
   s.hurtUntil = 0;
   s.seenVariants = new Set();
   s.deflects = 0;
@@ -200,6 +207,8 @@ export function endGame() {
   el.gameOver.style.display = 'block';
   s.restartArmedAt = performance.now() + CFG.feel.restartGrace;
   renderStartRecords();
+
+  if (reactionRecord || scoreRecord || dailyRecord) celebrate();
 }
 
 function badge(text) {
@@ -208,20 +217,105 @@ function badge(text) {
 }
 
 function burst(x, y, emoji, good = true) {
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 14; i++) {
     const a = Math.random() * Math.PI * 2;
-    const sp = 60 + Math.random() * 180;
+    const sp = 60 + Math.random() * 220;
     s.particles.push({
       x, y,
       vx: Math.cos(a) * sp,
       vy: Math.sin(a) * sp,
-      life: 0.45 + Math.random() * 0.25,
-      max: 0.7,
+      life: 0.45 + Math.random() * 0.3,
+      max: 0.75,
       size: 4 + Math.random() * 6,
+      // Los escombros caen. Sin gravedad las partículas flotaban hacia afuera
+      // como humo, y lo que se rompió tiene que pesar algo.
+      gravity: 850 + Math.random() * 500,
       good,
     });
   }
-  s.particles.push({ x, y, vx: 0, vy: -70, life: 0.55, max: 0.55, size: 22, text: emoji, good });
+  // El emoji que sale despedido no cae: sube y se desvanece, porque es la
+  // etiqueta de lo que pasó y tiene que poder leerse.
+  s.particles.push({ x, y, vx: 0, vy: -70, life: 0.55, max: 0.55, size: 22, text: emoji, good, gravity: 0 });
+}
+
+// Un anillo que se expande desde el punto de impacto. Comunica alcance, que es
+// lo que un destello solo no dice: el FEVER llena la pantalla, un blindado que
+// se rompe no.
+function shockwave(x, y, radius, color) {
+  s.waves.push({ x, y, r: 0, to: radius, life: 0.42, max: 0.42, color });
+}
+
+// Partículas, ondas y destello. Está aparte del update porque el festejo del
+// récord lo necesita cuando la simulación ya se detuvo.
+function advanceEffects(dt) {
+  for (const p of s.particles) {
+    if (p.gravity) p.vy += p.gravity * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    p.vx *= 0.98;
+    p.vy *= 0.98;
+  }
+  s.particles = s.particles.filter((p) => p.life > 0);
+
+  for (const w of s.waves) {
+    w.life -= dt;
+    // Se expande rápido y frena, que es como se ve una onda de verdad. Lineal
+    // parecía un círculo creciendo, no algo que estalló.
+    const t = 1 - w.life / w.max;
+    w.r = w.to * (1 - Math.pow(1 - t, 3));
+  }
+  s.waves = s.waves.filter((w) => w.life > 0);
+
+  if (s.flashA > 0) {
+    s.flashA -= dt * 3.4;
+    if (s.flashA < 0) s.flashA = 0;
+  }
+}
+
+const CONFETTI = ['#ffd54a', '#ff5a67', '#60e59e', '#7cc4ff', '#c68aff'];
+
+// La partida ya terminó y el loop principal se detuvo, así que el festejo corre
+// su propio bucle corto. Sin esto el récord se anunciaba sobre una pantalla
+// congelada, que es el momento más importante de la sesión y el menos vistoso.
+function celebrate() {
+  for (let i = 0; i < 80; i++) {
+    s.particles.push({
+      x: Math.random() * s.w,
+      y: -20 - Math.random() * s.h * 0.5,
+      vx: (Math.random() - 0.5) * 130,
+      vy: 120 + Math.random() * 260,
+      life: 1.5 + Math.random() * 1.1,
+      max: 2.6,
+      size: 3 + Math.random() * 5,
+      gravity: 240,
+      color: CONFETTI[Math.floor(Math.random() * CONFETTI.length)],
+    });
+  }
+  flash(0.28, '255,213,74');
+  shockwave(s.w / 2, s.h * CFG.arena.centerY, Math.max(s.w, s.h) * 0.8, '255,213,74');
+
+  let last = performance.now();
+  const step = (t) => {
+    // Si el jugador arrancó otra partida, el loop principal ya está dibujando
+    // y este bucle tiene que desaparecer sin pelearse por el canvas.
+    if (s.running) return;
+    const dt = Math.min(0.05, (t - last) / 1000 || 0);
+    last = t;
+    advanceEffects(dt);
+    draw(ctx, s, t, dt);
+    if (s.particles.length || s.waves.length || s.flashA > 0) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function flash(alpha, color = '255,255,255') {
+  // Se queda con el más fuerte en lugar de sumar: dos eventos juntos no tienen
+  // que blanquear la pantalla entera.
+  if (alpha > s.flashA) {
+    s.flashA = alpha;
+    s.flashColor = color;
+  }
 }
 
 function damageBoss(n) {
@@ -236,6 +330,14 @@ function damageBoss(n) {
   haptic(HAPTIC.bossKo);
   s.hitstop = CFG.feel.hitstopBossKo;
   s.shake = 22;
+  // El remate del boss es el pico de la partida, así que se lleva el tratamiento
+  // más grande: destello, dos anillos desfasados y escombros desde el centro.
+  flash(0.5, '255,213,74');
+  const cx = s.w / 2;
+  const cy = s.h * CFG.arena.centerY;
+  shockwave(cx, cy, Math.max(s.w, s.h) * 0.9, '255,213,74');
+  shockwave(cx, cy, Math.max(s.w, s.h) * 0.55, '255,255,255');
+  burst(cx, cy, '👵', true);
   el.bossBarWrap.style.display = 'none';
 }
 
@@ -293,6 +395,8 @@ function checkFever(now) {
   haptic(HAPTIC.fever);
   s.hitstop = CFG.feel.hitstopFever;
   s.shake = 18;
+  flash(0.32, '255,120,60');
+  shockwave(s.w / 2, s.h * CFG.arena.centerY, Math.max(s.w, s.h) * 0.75, '255,140,70');
 }
 
 // Devolver un objeto con el gesto correcto. Durante el boss pega el triple,
@@ -384,6 +488,9 @@ function hitSafe(o) {
   s.hitstop = CFG.feel.hitstopMiss;
   s.hurtUntil = performance.now() + 260;
   s.shake = 13;
+  // Rojo a pantalla completa: el error tiene que registrarse aunque estés
+  // mirando el otro extremo de la pantalla.
+  flash(0.36, '255,60,70');
   o.dead = true;
   updateTension();
   if (s.lives <= 0) endGame();
@@ -562,14 +669,7 @@ function update(dt, now) {
   }
   s.objects = s.objects.filter((o) => !o.dead);
 
-  for (const p of s.particles) {
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.life -= dt;
-    p.vx *= 0.98;
-    p.vy *= 0.98;
-  }
-  s.particles = s.particles.filter((p) => p.life > 0);
+  advanceEffects(dt);
 
   updateHud(s);
 }

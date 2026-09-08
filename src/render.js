@@ -21,8 +21,31 @@ export function draw(ctx, s, now, real) {
   drawCharacter(ctx, s, cx, cy, now);
   drawObjects(ctx, s, now);
   drawParticles(ctx, s);
+  drawWaves(ctx, s);
 
   ctx.restore();
+
+  // Va fuera del temblor a propósito: un rectángulo a pantalla completa que
+  // tiembla deja ver los bordes. Pero con su propio save, porque si no su
+  // fillStyle semitransparente sobrevive al frame y contamina el siguiente:
+  // los emojis de los objetos se dibujaban con alpha 0.12 y desaparecían.
+  if (s.flashA > 0) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(' + s.flashColor + ',' + s.flashA * 0.55 + ')';
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+}
+
+function drawWaves(ctx, s) {
+  for (const w of s.waves) {
+    const t = w.life / w.max;
+    ctx.strokeStyle = 'rgba(' + w.color + ',' + t * 0.55 + ')';
+    ctx.lineWidth = 2 + t * 7;
+    ctx.beginPath();
+    ctx.arc(w.x, w.y, w.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 }
 
 function drawArena(ctx, w, h, cx, cy) {
@@ -42,6 +65,8 @@ function drawObjects(ctx, s, now) {
     ctx.save();
     ctx.translate(o.x, o.y);
 
+    drawTrail(ctx, o);
+
     // La cáscara gira, el ícono no. El giro le da amenaza a lo puntiagudo,
     // pero rotar el emoji era justo lo que lo volvía ilegible: reconocer un
     // glifo con detalle fino mientras gira es carísimo para la vista.
@@ -57,6 +82,10 @@ function drawObjects(ctx, s, now) {
     ctx.font = Math.round(o.r * 0.86) + 'px system-ui';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    // Explícito y no heredado. Los emojis de color ignoran el color del
+    // fillStyle pero no su transparencia, así que un alpha que venga de otro
+    // dibujo los borra sin dejar rastro de por qué.
+    ctx.fillStyle = '#ffffff';
     if (o.hitFlash > 0) {
       ctx.shadowColor = '#ffffff';
       ctx.shadowBlur = 26;
@@ -64,6 +93,28 @@ function drawObjects(ctx, s, now) {
     ctx.fillText(o.emoji, 0, 0);
     ctx.restore();
   }
+}
+
+// Una estela que sale de la velocidad real del objeto. Además de verse mejor,
+// hace legible algo que antes había que adivinar: cuál de los objetos que
+// entran es el más rápido, o sea a cuál hay que atender primero.
+function drawTrail(ctx, o) {
+  const sp = Math.hypot(o.vx, o.vy);
+  if (sp < 60) return;
+  const len = Math.min(52, sp * 0.12);
+  const nx = -o.vx / sp;
+  const ny = -o.vy / sp;
+  const rgb = o.looksLike === 'safe' ? '63,207,136' : '255,68,83';
+  const grd = ctx.createLinearGradient(0, 0, nx * len, ny * len);
+  grd.addColorStop(0, 'rgba(' + rgb + ',.45)');
+  grd.addColorStop(1, 'rgba(' + rgb + ',0)');
+  ctx.strokeStyle = grd;
+  ctx.lineWidth = o.r * 0.95;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(nx * len, ny * len);
+  ctx.stroke();
 }
 
 // El jugador tiene que resolver "pego o no pego" en menos de medio segundo y
@@ -208,7 +259,7 @@ function drawParticles(ctx, s) {
       ctx.textBaseline = 'middle';
       ctx.fillText(p.text, p.x, p.y);
     } else {
-      ctx.fillStyle = p.good ? '#ffd54a' : '#ff5a67';
+      ctx.fillStyle = p.color || (p.good ? '#ffd54a' : '#ff5a67');
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size * a, 0, Math.PI * 2);
       ctx.fill();
