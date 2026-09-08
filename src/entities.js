@@ -20,12 +20,39 @@ export const SAFE = [
 ];
 
 // Cada variante es una capa de habilidad distinta sobre el mismo tap.
+//
+//   plain      reaccionar y tocar
+//   armored    reaccionar y tocar rápido tres veces
+//   deflect    reaccionar y hacer un gesto con dirección
+//   disguised  reaccionar leyendo el ícono y no el color del brillo
+//
+// La última es la más importante: el brillo rojo o verde es un atajo que el
+// jugador aprende en dos partidas, y el disfraz invierte ese brillo. Quien
+// leía el color se equivoca; quien lee el objeto, no.
 export const VARIANT = {
   plain: { hp: 1, radius: 28 },
   armored: { hp: 3, radius: 32 },
   deflect: { hp: 1, radius: 30 },
   disguised: { hp: 1, radius: 28 },
 };
+
+// Elige variante entre las habilitadas a esta altura de la partida, con pesos.
+export function rollVariant({ rng, elapsed, boss, kind }) {
+  const pool = [];
+  let total = 0;
+  for (const v of CFG.variants.schedule) {
+    if (elapsed < v.from) continue;
+    if (!v.kinds.includes(kind)) continue;
+    let weight = v.weight;
+    if (boss && CFG.variants.bossBoost[v.id]) weight *= CFG.variants.bossBoost[v.id];
+    total += weight;
+    pool.push([v.id, total]);
+  }
+  if (!pool.length) return 'plain';
+  const roll = rng() * total;
+  for (const [id, cumulative] of pool) if (roll < cumulative) return id;
+  return 'plain';
+}
 
 // Nace fuera de la pantalla, en un lado al azar, y viaja hacia el personaje.
 export function spawn({ rng, w, h, elapsed, boss, kind, variant = 'plain' }) {
@@ -52,6 +79,9 @@ export function spawn({ rng, w, h, elapsed, boss, kind, variant = 'plain' }) {
   return {
     kind,
     variant,
+    // Lo que el brillo le dice al jugador. En los disfrazados miente.
+    looksLike: variant === 'disguised' ? (kind === 'safe' ? 'danger' : 'safe') : kind,
+    deflected: false,
     x, y,
     vx: (dx / len) * speed,
     vy: (dy / len) * speed,
@@ -61,6 +91,7 @@ export function spawn({ rng, w, h, elapsed, boss, kind, variant = 'plain' }) {
     name: src.name,
     born: performance.now(),
     seen: null,          // se completa cuando entra en pantalla
+    firstTouch: null,    // primer contacto, que es lo que mide el reflejo
     dead: false,
     hitFlash: 0,
     rot: (rng() - 0.5) * 0.5,

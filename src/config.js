@@ -58,6 +58,32 @@ export const CFG = {
     hp: 18,
   },
 
+  // Las variantes entran de a una y espaciadas, para que cada mecánica se
+  // aprenda sola sin tutorial. El peso es relativo entre las ya habilitadas.
+  variants: {
+    schedule: [
+      { id: 'plain', from: 0, weight: 100, kinds: ['danger', 'safe'] },
+      { id: 'disguised', from: 9, weight: 20, kinds: ['danger', 'safe'] },
+      { id: 'armored', from: 15, weight: 24, kinds: ['danger'] },
+      { id: 'deflect', from: 21, weight: 22, kinds: ['danger'] },
+    ],
+    // Durante el boss conviene que aparezca más de lo que da puntos altos.
+    bossBoost: { armored: 1.6, deflect: 1.9 },
+  },
+
+  armor: {
+    hitPoints: 40,        // puntos por cada golpe que no lo rompe
+    hitstop: 0.022,
+  },
+
+  deflect: {
+    swipeDistance: 26,           // px de desplazamiento para que cuente
+    maxAngle: Math.PI * 0.55,    // tolerancia respecto de la dirección correcta
+    bossDamage: 3,               // devolverlo durante el boss pega fuerte
+    points: 240,
+    exitSpeed: 620,
+  },
+
   feel: {
     // El congelamiento es proporcional a la calidad de la reacción: premiar
     // el reflejo haciendo que el golpe se sienta más, no solo sumando puntos.

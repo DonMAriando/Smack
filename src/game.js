@@ -2,7 +2,7 @@ import { CFG, reactionRank } from './config.js';
 import { makeRng } from './rng.js';
 import { save, persist, touchStreak } from './save.js';
 import { impact, blip, haptic, ensureAudio, HAPTIC } from './feedback.js';
-import { spawn, rollKind } from './entities.js';
+import { spawn, rollKind, rollVariant } from './entities.js';
 import { el, updateHud, showToast, renderStartRecords } from './hud.js';
 import { draw } from './render.js';
 
@@ -33,6 +33,7 @@ export const s = {
   hitstop: 0,
   timeScale: 1,
   restartArmedAt: 0,
+  seenVariants: new Set(),
   rng: Math.random,
 };
 
@@ -68,6 +69,8 @@ function reset(seed) {
   s.shake = 0;
   s.hitstop = 0;
   s.timeScale = 1;
+  s.seenVariants = new Set();
+  grab = null;
   s.rng = seed === undefined ? Math.random : makeRng(seed);
   updateHud(s);
 }
@@ -160,17 +163,120 @@ function burst(x, y, emoji, good = true) {
   s.particles.push({ x, y, vx: 0, vy: -70, life: 0.55, max: 0.55, size: 22, text: emoji, good });
 }
 
+function damageBoss(n) {
+  if (!s.boss) return;
+  s.bossHp -= n;
+  if (s.bossHp > 0) return;
+  s.boss = false;
+  s.score += CFG.scoring.bossKoBonus;
+  showToast('👵 BOSS KO +' + CFG.scoring.bossKoBonus);
+  impact({ pitch: 90, dur: 0.55, vol: 0.7, bright: 900 });
+  haptic(HAPTIC.bossKo);
+  s.hitstop = CFG.feel.hitstopBossKo;
+  s.shake = 22;
+  el.bossBarWrap.style.display = 'none';
+}
+
+// Cada variante se presenta con un cartel la primera vez que sale en la
+// partida. Enseñar en contexto en vez de alargar la pantalla de reglas, que
+// hoy promete que todo entra en dos segundos.
+const VARIANT_INTRO = {
+  armored: '🛡️ BLINDADO · 3 TOQUES',
+  deflect: '↩️ ARRASTRALO PARA DEVOLVERLO',
+  disguised: '🎭 OJO: HAY DISFRAZADOS',
+};
+
+function introduceVariant(id) {
+  if (id === 'plain' || s.seenVariants.has(id)) return;
+  s.seenVariants.add(id);
+  showToast(VARIANT_INTRO[id]);
+  blip(520, 0.14, 'triangle', 0.05);
+  haptic(HAPTIC.armor);
+}
+
 function updateTension() {
   // La última vida entra en cámara lenta. Convierte el final en el momento más
   // tenso de la partida en vez del más frustrante.
   s.timeScale = s.running && s.lives === 1 ? CFG.feel.lastLifeTimeScale : 1;
 }
 
+// El cronómetro arranca cuando el objeto entró en pantalla, no cuando nació
+// fuera del borde a una distancia aleatoria del centro. Y si ya lo habías
+// tocado antes (blindados), la reacción es la del primer contacto: el resto es
+// velocidad de dedo, no reflejo.
+function reactionOf(o, now) {
+  return now - (o.firstTouch ?? o.seen ?? o.born);
+}
+
+// Golpe que no rompe el blindaje. No cuenta como acierto ni sube el combo:
+// si contara, un blindado inflaría el combo tres veces por un solo objeto.
+function hitArmor(o, now) {
+  if (o.firstTouch === null) o.firstTouch = now;
+  o.hp--;
+  o.hitFlash = 0.12;
+  s.score += CFG.armor.hitPoints;
+  s.hitstop = Math.max(s.hitstop, CFG.armor.hitstop);
+  s.shake = Math.max(s.shake, 5);
+  impact({ pitch: 340, dur: 0.07, vol: 0.32, bright: 3000 });
+  haptic(HAPTIC.armor);
+}
+
+function checkFever(now) {
+  const sc = CFG.scoring;
+  if (s.combo !== sc.feverAt && !(s.combo > sc.feverAt && s.combo % sc.feverEvery === 0)) return;
+  s.feverUntil = now + sc.feverDuration;
+  showToast('🔥 FEVER!');
+  blip(680, 0.12, 'sawtooth', 0.055);
+  impact({ pitch: 300, dur: 0.3, vol: 0.5, bright: 2600 });
+  haptic(HAPTIC.fever);
+  s.hitstop = CFG.feel.hitstopFever;
+  s.shake = 18;
+}
+
+// Devolver un objeto con el gesto correcto. Durante el boss pega el triple,
+// que es la razón para ir a buscar los deslizables en vez de esquivarlos.
+function deflect(o) {
+  const now = performance.now();
+  const ms = reactionOf(o, now);
+
+  o.deflected = true;
+  o.hitFlash = 0.2;
+  s.bestReaction = s.bestReaction === null ? ms : Math.min(s.bestReaction, ms);
+  s.combo++;
+  s.maxCombo = Math.max(s.maxCombo, s.combo);
+  s.hits++;
+  checkFever(now);
+
+  const fever = now < s.feverUntil;
+  s.score += CFG.deflect.points * (fever ? CFG.scoring.feverMultiplier : 1);
+
+  if (s.boss) {
+    damageBoss(CFG.deflect.bossDamage);
+    showToast('↩️ DEVUELTO ×' + CFG.deflect.bossDamage);
+  } else {
+    showToast('↩️ DEVUELTO');
+  }
+
+  const len = Math.hypot(o.vx, o.vy) || 1;
+  o.vx = (-o.vx / len) * CFG.deflect.exitSpeed;
+  o.vy = (-o.vy / len) * CFG.deflect.exitSpeed;
+  o.spin *= 6;
+
+  el.reactionLine.textContent = 'DEVUELTO · ' + Math.round(ms) + ' ms';
+  burst(o.x, o.y, '↩️', true);
+  impact({ pitch: 210, dur: 0.22, vol: 0.55, bright: 2200 });
+  haptic(HAPTIC.deflect);
+  s.hitstop = Math.max(s.hitstop, 0.06);
+  s.shake = 12;
+}
+
 function hitDanger(o) {
   const now = performance.now();
-  // El cronómetro arranca cuando el objeto entró en pantalla, no cuando nació
-  // fuera del borde a una distancia aleatoria del centro.
-  const ms = now - (o.seen ?? o.born);
+  if (o.hp > 1) {
+    hitArmor(o, now);
+    return;
+  }
+  const ms = reactionOf(o, now);
   const sc = CFG.scoring;
 
   s.bestReaction = s.bestReaction === null ? ms : Math.min(s.bestReaction, ms);
@@ -178,15 +284,7 @@ function hitDanger(o) {
   s.maxCombo = Math.max(s.maxCombo, s.combo);
   s.hits++;
 
-  if (s.combo === sc.feverAt || (s.combo > sc.feverAt && s.combo % sc.feverEvery === 0)) {
-    s.feverUntil = now + sc.feverDuration;
-    showToast('🔥 FEVER!');
-    blip(680, 0.12, 'sawtooth', 0.055);
-    impact({ pitch: 300, dur: 0.3, vol: 0.5, bright: 2600 });
-    haptic(HAPTIC.fever);
-    s.hitstop = CFG.feel.hitstopFever;
-    s.shake = 18;
-  }
+  checkFever(now);
 
   const fever = now < s.feverUntil;
   let points = Math.max(sc.minPoints, sc.maxPoints - ms);
@@ -194,19 +292,7 @@ function hitDanger(o) {
   if (fever) points *= sc.feverMultiplier;
   s.score += points;
 
-  if (s.boss) {
-    s.bossHp--;
-    if (s.bossHp <= 0) {
-      s.boss = false;
-      s.score += sc.bossKoBonus;
-      showToast('👵 BOSS KO +' + sc.bossKoBonus);
-      impact({ pitch: 90, dur: 0.55, vol: 0.7, bright: 900 });
-      haptic(HAPTIC.bossKo);
-      s.hitstop = CFG.feel.hitstopBossKo;
-      s.shake = 22;
-      el.bossBarWrap.style.display = 'none';
-    }
-  }
+  if (s.boss) damageBoss(1);
 
   el.reactionLine.textContent = reactionRank(ms) + ' · ' + Math.round(ms) + ' ms';
   showToast(reactionRank(ms));
@@ -237,34 +323,88 @@ function hitSafe(o) {
   if (s.lives <= 0) endGame();
 }
 
-export function tap(clientX, clientY) {
-  if (!s.running) return;
-  const r = canvas.getBoundingClientRect();
-  const px = clientX - r.left;
-  const py = clientY - r.top;
+// Objeto agarrado esperando un gesto. Solo los deslizables llegan acá.
+let grab = null;
 
+function toLocal(clientX, clientY) {
+  const r = canvas.getBoundingClientRect();
+  return { x: clientX - r.left, y: clientY - r.top };
+}
+
+function objectAt(px, py) {
   let best = null;
   let bd = Infinity;
   for (const o of s.objects) {
-    if (o.dead) continue;
+    if (o.dead || o.deflected) continue;
     const d = Math.hypot(px - o.x, py - o.y);
     if (d < o.r + CFG.feel.tapForgiveness && d < bd) {
       best = o;
       bd = d;
     }
   }
-  if (best) {
-    if (best.kind === 'safe') hitSafe(best);
-    else hitDanger(best);
-    updateHud(s);
-  } else {
+  return best;
+}
+
+export function pointerDown(clientX, clientY) {
+  if (!s.running) return;
+  const p = toLocal(clientX, clientY);
+  const o = objectAt(p.x, p.y);
+  if (!o) {
     blip(150, 0.025, 'sine', 0.018);
+    return;
   }
+
+  // Los deslizables no se resuelven al tocarlos, hay que arrastrarlos. Pero el
+  // cronómetro de reacción se detiene acá, en el primer contacto: eso es lo que
+  // midió el reflejo, y el resto es la ejecución del gesto. Todo lo demás se
+  // resuelve en el pointerdown para no agregar ni un ms de latencia al tap.
+  if (o.variant === 'deflect' && o.kind === 'danger') {
+    if (o.firstTouch === null) o.firstTouch = performance.now();
+    grab = { o, x0: p.x, y0: p.y };
+    return;
+  }
+
+  if (o.kind === 'safe') hitSafe(o);
+  else hitDanger(o);
+  updateHud(s);
+}
+
+export function pointerMove(clientX, clientY) {
+  if (!s.running || !grab) return;
+  const p = toLocal(clientX, clientY);
+  const dx = p.x - grab.x0;
+  const dy = p.y - grab.y0;
+  if (Math.hypot(dx, dy) < CFG.deflect.swipeDistance) return;
+
+  const o = grab.o;
+  grab = null;
+  if (o.dead || o.deflected) return;
+
+  // Lo correcto es empujarlo hacia atrás, por donde vino.
+  const want = Math.atan2(-o.vy, -o.vx);
+  const got = Math.atan2(dy, dx);
+  let diff = Math.abs(want - got);
+  if (diff > Math.PI) diff = Math.PI * 2 - diff;
+
+  if (diff > CFG.deflect.maxAngle) {
+    showToast('↩️ AL REVÉS');
+    blip(140, 0.09, 'sawtooth', 0.04);
+    haptic(HAPTIC.armor);
+    return;
+  }
+  deflect(o);
+  updateHud(s);
+}
+
+export function pointerUp() {
+  grab = null;
 }
 
 function doSpawn(forceDanger) {
   const kind = rollKind({ rng: s.rng, elapsed: s.elapsed, boss: s.boss, forceDanger });
-  s.objects.push(spawn({ rng: s.rng, w: s.w, h: s.h, elapsed: s.elapsed, boss: s.boss, kind }));
+  const variant = rollVariant({ rng: s.rng, elapsed: s.elapsed, boss: s.boss, kind });
+  introduceVariant(variant);
+  s.objects.push(spawn({ rng: s.rng, w: s.w, h: s.h, elapsed: s.elapsed, boss: s.boss, kind, variant }));
 }
 
 function update(dt, now) {
@@ -320,6 +460,16 @@ function update(dt, now) {
     // nacen a distintas distancias del centro, así que medir desde el
     // nacimiento daba números inventados.
     if (o.seen === null && o.x > -o.r && o.x < s.w + o.r && o.y > -o.r && o.y < s.h + o.r) o.seen = now;
+
+    // Los devueltos salen volando hacia afuera. Antes ningún objeto podía
+    // dejar la pantalla, así que no había que recogerlos; ahora sí, o se
+    // acumulan para siempre.
+    const margin = CFG.arena.spawnMargin * 3;
+    if (o.x < -margin || o.x > s.w + margin || o.y < -margin || o.y > s.h + margin) {
+      o.dead = true;
+      continue;
+    }
+    if (o.deflected) continue;
 
     if (Math.hypot(o.x - cx, o.y - cy) < CFG.arena.hurtRadius) {
       o.dead = true;

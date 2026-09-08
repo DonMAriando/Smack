@@ -2,7 +2,7 @@ import { CFG } from './config.js';
 import { el, renderStartRecords } from './hud.js';
 import { setMuted, isMuted, ensureAudio } from './feedback.js';
 import { shareResult } from './share.js';
-import { s, resize, startGame, loop, tap, drawIdle } from './game.js';
+import { s, resize, startGame, loop, pointerDown, pointerMove, pointerUp, drawIdle } from './game.js';
 
 window.addEventListener('resize', resize);
 resize();
@@ -10,8 +10,16 @@ resize();
 el.game.addEventListener('pointerdown', (e) => {
   if (!s.running) return;
   e.preventDefault();
-  tap(e.clientX, e.clientY);
+  pointerDown(e.clientX, e.clientY);
 });
+el.game.addEventListener('pointermove', (e) => {
+  if (!s.running) return;
+  pointerMove(e.clientX, e.clientY);
+});
+el.game.addEventListener('pointerup', pointerUp);
+el.game.addEventListener('pointercancel', pointerUp);
+// Si el dedo sale del canvas a mitad del gesto, el arrastre se cancela igual.
+el.game.addEventListener('pointerleave', pointerUp);
 
 el.startBtn.addEventListener('click', () => startGame());
 el.restartBtn.addEventListener('click', () => startGame());

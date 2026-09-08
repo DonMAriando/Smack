@@ -52,20 +52,80 @@ function drawObjects(ctx, s) {
   for (const o of s.objects) {
     ctx.save();
     ctx.translate(o.x, o.y);
+
+    drawHalo(ctx, o);
+    if (o.variant === 'armored') drawArmor(ctx, o);
+    if (o.variant === 'deflect') drawSwipeHint(ctx, o);
+
     ctx.rotate(o.rot);
-    ctx.font = (o.kind === 'safe' ? 42 : 46) + 'px system-ui';
+    ctx.font = (o.looksLike === 'safe' ? 42 : 46) + 'px system-ui';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    if (o.kind === 'safe') {
-      ctx.shadowColor = 'rgba(96,229,158,.55)';
-      ctx.shadowBlur = 16;
-    } else {
-      ctx.shadowColor = 'rgba(255,90,103,.35)';
-      ctx.shadowBlur = 10;
+    if (o.hitFlash > 0) {
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 26;
     }
     ctx.fillText(o.emoji, 0, 0);
     ctx.restore();
   }
+}
+
+// Rojo es pegale, verde es dejalo pasar. Tiene que leerse en el borde de la
+// pantalla y de reojo, porque el juego mide reflejos y no vista.
+//
+// El color sigue a looksLike y no a kind, y ese es todo el truco de los
+// disfrazados: el halo miente y el ícono dice la verdad. Por eso el halo
+// necesita ser fuerte, si fuera sutil el disfraz no engañaría a nadie, solo
+// castigaría al azar.
+function drawHalo(ctx, o) {
+  const rgb = o.looksLike === 'safe' ? '96,229,158' : '255,90,103';
+  const outer = o.r + 16;
+  const grd = ctx.createRadialGradient(0, 0, o.r * 0.25, 0, 0, outer);
+  grd.addColorStop(0, 'rgba(' + rgb + ',.5)');
+  grd.addColorStop(0.55, 'rgba(' + rgb + ',.22)');
+  grd.addColorStop(1, 'rgba(' + rgb + ',0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(0, 0, outer, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// Arcos que se van apagando: cuántos golpes le quedan se lee sin contar.
+function drawArmor(ctx, o) {
+  const segments = 3;
+  const gap = 0.22;
+  const step = (Math.PI * 2) / segments;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < segments; i++) {
+    ctx.beginPath();
+    ctx.strokeStyle = i < o.hp ? '#cfd6e4' : 'rgba(207,214,228,.16)';
+    ctx.arc(0, 0, o.r + 6, i * step + gap / 2, (i + 1) * step - gap / 2);
+    ctx.stroke();
+  }
+}
+
+// Tres galones apuntando hacia donde hay que arrastrar, o sea hacia atrás del
+// objeto: se devuelve empujándolo por donde vino.
+function drawSwipeHint(ctx, o) {
+  const len = Math.hypot(o.vx, o.vy) || 1;
+  const back = Math.atan2(-o.vy / len, -o.vx / len);
+  ctx.save();
+  ctx.rotate(back);
+  ctx.strokeStyle = 'rgba(255,213,74,.85)';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 3; i++) {
+    const d = o.r + 8 + i * 7;
+    ctx.globalAlpha = 0.9 - i * 0.25;
+    ctx.beginPath();
+    ctx.moveTo(d - 5, -7);
+    ctx.lineTo(d + 1, 0);
+    ctx.lineTo(d - 5, 7);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 function drawParticles(ctx, s) {
