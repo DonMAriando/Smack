@@ -14,6 +14,9 @@ const EMPTY = {
   xp: 0,            // puntaje acumulado de todas las partidas
   unlocked: [],
   daily: {},        // { 'AAAA-MM-DD': mejorPuntajeDelDia }
+  // Puntajes que llegaron por link de un amigo, para superar ese día.
+  // { 'AAAA-MM-DD': { score, ms, combo } }
+  rivals: {},
   missionsDone: 0,
 };
 

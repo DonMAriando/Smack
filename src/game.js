@@ -8,6 +8,7 @@ import { refreshLook } from './character.js';
 import { pickMissions, evaluate, earnedXp } from './missions.js';
 import { addXp, describe } from './progression.js';
 import { dailySeed, recordDaily } from './daily.js';
+import { rivalToday } from './challenge.js';
 import { el, updateHud, showToast, renderStartRecords, renderMissions } from './hud.js';
 import { draw } from './render.js';
 
@@ -183,6 +184,11 @@ export function endGame() {
   el.modeLabel.style.display = s.mode === 'daily' ? 'block' : 'none';
   renderMissions(s.missions);
 
+  // Desafiar solo tiene sentido en el diario: en partida libre cada uno juega
+  // una secuencia distinta, así que comparar puntajes no significaría nada.
+  const rival = s.mode === 'daily' ? rivalToday() : null;
+  el.challengeBtn.style.display = s.mode === 'daily' ? 'block' : 'none';
+
   if (rewards.length) {
     el.rewardBadge.innerHTML = '🎁 DESBLOQUEADO<br>' + rewards.map(describe).join(' · ');
     el.rewardBadge.style.display = 'block';
@@ -192,7 +198,13 @@ export function endGame() {
     el.rewardBadge.style.display = 'none';
   }
 
-  if (dailyRecord) badge('📅 MEJOR DEL DÍA: ' + finalScore);
+  // El duelo con el amigo pisa a los demás carteles: si alguien te mandó un
+  // desafío, el resultado de esa comparación es la única cosa que querés leer.
+  if (rival && finalScore > rival.score)
+    badge('⚔️ LE GANASTE por ' + (finalScore - rival.score).toLocaleString('es'));
+  else if (rival)
+    badge('⚔️ TE FALTARON ' + (rival.score - finalScore).toLocaleString('es'));
+  else if (dailyRecord) badge('📅 MEJOR DEL DÍA: ' + finalScore);
   else if (reactionRecord && scoreRecord) badge('🏆 DOBLE RÉCORD: puntaje y reacción');
   else if (reactionRecord) badge('⚡ REACCIÓN RÉCORD: ' + Math.round(s.bestReaction) + ' ms');
   else if (scoreRecord) badge('🏆 PUNTAJE RÉCORD: ' + finalScore);

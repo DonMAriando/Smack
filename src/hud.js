@@ -2,6 +2,7 @@ import { CFG } from './config.js';
 import { save } from './save.js';
 import { levelFor, titleFor, nextStep, describe, progress } from './progression.js';
 import { dailyBest } from './daily.js';
+import { rivalToday } from './challenge.js';
 
 const ids = [
   'app', 'game', 'score', 'combo', 'timer', 'lives', 'bestReaction', 'reactionLine',
@@ -9,7 +10,7 @@ const ids = [
   'finalCombo', 'finalHits', 'endMessage', 'fever', 'toast', 'mute',
   'bossBarWrap', 'bossFill', 'startRecords', 'recordBadge', 'shareBtn',
   'dailyBtn', 'progressWrap', 'progressLabel', 'progressFill',
-  'modeLabel', 'missionList', 'rewardBadge',
+  'modeLabel', 'missionList', 'rewardBadge', 'rivalNote', 'challengeBtn',
 ];
 
 export const el = {};
@@ -48,7 +49,17 @@ export function renderStartRecords() {
   if (save.streak > 1) parts.push(cell('Racha', '🔥 ' + save.streak + ' días'));
   const today = dailyBest();
   if (today !== null) parts.push(cell('Diario de hoy', today));
+  const rival = rivalToday();
+  if (rival) parts.push(cell('A superar hoy', rival.score.toLocaleString('es')));
   el.startRecords.innerHTML = parts.join('');
+  // El desafío de un amigo es lo único que empuja a jugar el diario en vez de
+  // una partida libre, así que se anuncia y no se esconde entre los récords.
+  if (rival) {
+    el.rivalNote.textContent = '⚔️ Un amigo hizo ' + rival.score.toLocaleString('es') + ' hoy. Jugá el desafío del día y superalo.';
+    el.rivalNote.style.display = 'block';
+  } else {
+    el.rivalNote.style.display = 'none';
+  }
   renderProgress();
 }
 

@@ -1,5 +1,7 @@
 import { CFG } from './config.js';
-import { el, renderStartRecords } from './hud.js';
+import { el, renderStartRecords, showToast } from './hud.js';
+import { challengeUrl, readIncoming } from './challenge.js';
+import { todayStamp } from './save.js';
 import { setMuted, isMuted, ensureAudio } from './feedback.js';
 import { shareResult } from './share.js';
 import { drawSample } from './render.js';
@@ -77,6 +79,50 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   });
+}
+
+const CHALLENGE_LABEL = '⚔️ DESAFIAR A UN AMIGO';
+el.challengeBtn.addEventListener('click', async () => {
+  const score = Math.floor(s.score);
+  const url = challengeUrl({
+    stamp: todayStamp(),
+    score,
+    ms: s.bestReaction ? Math.round(s.bestReaction) : null,
+    combo: s.maxCombo,
+  });
+  const text =
+    'Hice ' + score.toLocaleString('es') + ' en el desafío SMACK! de hoy. ' +
+    'Mismos objetos, mismas misiones para los dos. ¿Le ganás?';
+
+  let outcome = 'failed';
+  if (navigator.share) {
+    try {
+      await navigator.share({ text, url });
+      outcome = 'shared';
+    } catch (e) {
+      outcome = e.name === 'AbortError' ? 'cancelled' : 'failed';
+    }
+  }
+  if (outcome === 'failed') {
+    try {
+      await navigator.clipboard.writeText(text + ' ' + url);
+      outcome = 'copied';
+    } catch (e) {}
+  }
+  const labels = { copied: '📋 LINK COPIADO', failed: '⚠️ NO SE PUDO COMPARTIR' };
+  if (labels[outcome]) {
+    el.challengeBtn.textContent = labels[outcome];
+    setTimeout(() => (el.challengeBtn.textContent = CHALLENGE_LABEL), 1600);
+  }
+});
+
+// Si el jugador entró por el link de un amigo, hay que leerlo antes de pintar
+// la pantalla de inicio, que es donde se anuncia el puntaje a superar.
+const incoming = readIncoming();
+if (incoming && incoming.stale) {
+  showToast('⚔️ ESE DESAFÍO ERA DE OTRO DÍA');
+} else if (incoming) {
+  showToast('⚔️ TE DESAFIARON CON ' + incoming.score.toLocaleString('es'));
 }
 
 // La leyenda de la pantalla de inicio, dibujada con el mismo código que los

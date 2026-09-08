@@ -78,6 +78,8 @@
     #missionList b{margin-left:auto;font-size:11px;color:var(--muted)}
     #missionList div.done b{color:var(--safe)}
     #gameOver,#bootError{display:none}
+    #rivalNote{display:none;margin:10px 0 0;padding:10px 12px;background:rgba(198,138,255,.12);border:1px solid rgba(198,138,255,.4);border-radius:14px;font-size:12px;line-height:1.4;color:#e6d5ff}
+    #challengeBtn{display:none}
     #legend{display:flex;gap:10px;justify-content:center;margin:16px 0 18px}
     .legendItem{flex:1;background:#14161b;border:1px solid var(--line);border-radius:16px;padding:12px 6px}
     .legendIcon{display:block;margin:0 auto 6px;width:60px;height:60px}
@@ -139,6 +141,7 @@
 
       <button id="startBtn" type="button">TOCAR PARA EMPEZAR</button>
       <button id="dailyBtn" type="button" class="ghost">📅 DESAFÍO DEL DÍA</button>
+      <div id="rivalNote"></div>
       <div id="startRecords" class="recStrip"></div>
       <div id="progressWrap">
         <div id="progressLabel"></div>
@@ -162,6 +165,7 @@
       <div id="recordBadge"></div>
       <button id="restartBtn" type="button">OTRA VEZ</button>
       <button id="shareBtn" type="button" class="ghost">📤 COMPARTIR MI REACCIÓN</button>
+      <button id="challengeBtn" type="button" class="ghost">⚔️ DESAFIAR A UN AMIGO</button>
       <div class="smallNote">Tocá en cualquier lado o apretá espacio para repetir.</div>
     </section>
 

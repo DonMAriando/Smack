@@ -50,6 +50,30 @@ disfraz fuera invisible, saber que existe te obligaría a desconfiar de todos
 los objetos y el canal rápido dejaría de servir en toda la partida. Marcado, la
 desconfianza dura lo que dura ese objeto.
 
+## Desafiar a un amigo
+
+Al terminar un desafío del día aparece **⚔️ DESAFIAR A UN AMIGO**, que comparte
+un link con tu puntaje adentro. El que lo abre ve cuánto tiene que superar y,
+al terminar su partida, si te ganó o por cuánto le faltó.
+
+No hay servidor y no hace falta: como la semilla del día sale de la fecha, los
+dos juegan exactamente la misma secuencia, así que el puntaje puede viajar en
+el link y la comparación se resuelve en el teléfono de cada uno. Sin cuentas y
+sin datos personales.
+
+Lo que **no** es: una tabla de posiciones confiable. Cualquiera puede editar el
+link y ponerse el puntaje que quiera. La suma de control detecta un link
+cortado o roto por el chat, no a alguien que miente a propósito. Una tabla
+global de verdad necesita un servidor que valide, y eso es una decisión de
+infraestructura que todavía no tomamos.
+
+## Sonido
+
+No hay ni un archivo de audio. Los golpes y la música se generan con WebAudio
+en el momento. La música es un secuenciador de semicorcheas y suma capas según
+la intensidad: pulso solo, contratiempo, bajo, y melodía con redoblante en el
+FEVER y en el boss, que además baja la tónica un tono.
+
 ## Progresión
 
 El puntaje de cada partida se acumula como experiencia y desbloquea objetos
