@@ -28,6 +28,7 @@ const ASSETS = [
   './src/rng.js',
   './src/save.js',
   './src/feedback.js',
+  './src/music.js',
   './src/entities.js',
   './src/character.js',
   './src/render.js',

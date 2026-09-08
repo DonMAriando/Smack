@@ -14,6 +14,18 @@ export function isMuted() {
   return muted;
 }
 
+// La música necesita el mismo contexto y el mismo buffer de ruido: dos
+// AudioContext en la misma página compiten por la salida y en móviles el
+// segundo suele quedar suspendido para siempre.
+export function audioCtx() {
+  ensureAudio();
+  return ctx;
+}
+
+export function audioNoise() {
+  return noise;
+}
+
 export function ensureAudio() {
   if (muted) return;
   if (!ctx) {

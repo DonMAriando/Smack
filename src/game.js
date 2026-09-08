@@ -2,6 +2,7 @@ import { CFG, reactionRank } from './config.js';
 import { makeRng } from './rng.js';
 import { save, persist, touchStreak } from './save.js';
 import { impact, blip, haptic, ensureAudio, HAPTIC } from './feedback.js';
+import * as music from './music.js';
 import { spawn, rollKind, rollVariant, refreshPools } from './entities.js';
 import { refreshLook } from './character.js';
 import { pickMissions, evaluate, earnedXp } from './missions.js';
@@ -120,6 +121,7 @@ export function startGame(mode = 'free') {
   el.modeLabel.style.display = 'none';
   el.reactionLine.textContent = '';
   ensureAudio();
+  music.play();
   requestAnimationFrame(loop);
 }
 
@@ -128,6 +130,7 @@ export function endGame() {
   s.running = false;
   s.timeScale = 1;
   s.hitstop = 0;
+  music.stop();
 
   const finalScore = Math.floor(s.score);
   const previousBest = save.bestScore;
@@ -571,12 +574,26 @@ function update(dt, now) {
   updateHud(s);
 }
 
+// La música sigue al estado real de la partida, no al reloj. Son los mismos
+// umbrales que ya usa el juego para otras cosas, así que la capa que entra
+// coincide con lo que el jugador está sintiendo.
+function musicIntensity(now) {
+  if (s.boss || now < s.feverUntil) return 3;
+  if (s.combo >= CFG.scoring.feverAt) return 2;
+  if (s.combo >= 4) return 1;
+  return 0;
+}
+
 export function loop(now) {
   if (!s.running) return;
   // El tope evita el túnel de colisión sin ralentizar el juego en cada hipo de
   // frame, que era lo que pasaba con el tope anterior de 33 ms.
   const real = Math.min(CFG.feel.maxDeltaTime, (now - s.last) / 1000 || 0);
   s.last = now;
+
+  // Se agenda incluso durante el congelamiento: el ritmo no se frena cuando
+  // pegás, justamente para que el golpe se sienta contra un pulso que sigue.
+  music.tick({ intensity: musicIntensity(now), boss: s.boss });
 
   if (s.hitstop > 0) {
     s.hitstop -= real;
