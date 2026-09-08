@@ -19,7 +19,7 @@ export function draw(ctx, s, now, real) {
 
   drawArena(ctx, w, h, cx, cy);
   drawCharacter(ctx, s, cx, cy, now);
-  drawObjects(ctx, s);
+  drawObjects(ctx, s, now);
   drawParticles(ctx, s);
 
   ctx.restore();
@@ -37,17 +37,24 @@ function drawArena(ctx, w, h, cx, cy) {
   ctx.globalAlpha = 1;
 }
 
-function drawObjects(ctx, s) {
+function drawObjects(ctx, s, now) {
   for (const o of s.objects) {
     ctx.save();
     ctx.translate(o.x, o.y);
 
-    drawHalo(ctx, o);
+    // La cáscara gira, el ícono no. El giro le da amenaza a lo puntiagudo,
+    // pero rotar el emoji era justo lo que lo volvía ilegible: reconocer un
+    // glifo con detalle fino mientras gira es carísimo para la vista.
+    ctx.save();
+    ctx.rotate(o.rot);
+    drawShell(ctx, o);
+    ctx.restore();
+
+    if (o.variant === 'disguised') drawDisguise(ctx, o, now);
     if (o.variant === 'armored') drawArmor(ctx, o);
     if (o.variant === 'deflect') drawSwipeHint(ctx, o);
 
-    ctx.rotate(o.rot);
-    ctx.font = (o.looksLike === 'safe' ? 42 : 46) + 'px system-ui';
+    ctx.font = Math.round(o.r * 0.86) + 'px system-ui';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     if (o.hitFlash > 0) {
@@ -59,24 +66,98 @@ function drawObjects(ctx, s) {
   }
 }
 
-// Rojo es pegale, verde es dejalo pasar. Tiene que leerse en el borde de la
-// pantalla y de reojo, porque el juego mide reflejos y no vista.
+// El jugador tiene que resolver "pego o no pego" en menos de medio segundo y
+// de reojo, porque el objeto entra por el borde de la pantalla.
 //
-// El color sigue a looksLike y no a kind, y ese es todo el truco de los
-// disfrazados: el halo miente y el ícono dice la verdad. Por eso el halo
-// necesita ser fuerte, si fuera sutil el disfraz no engañaría a nadie, solo
-// castigaría al azar.
-function drawHalo(ctx, o) {
-  const rgb = o.looksLike === 'safe' ? '96,229,158' : '255,90,103';
-  const outer = o.r + 16;
-  const grd = ctx.createRadialGradient(0, 0, o.r * 0.25, 0, 0, outer);
-  grd.addColorStop(0, 'rgba(' + rgb + ',.5)');
-  grd.addColorStop(0.55, 'rgba(' + rgb + ',.22)');
-  grd.addColorStop(1, 'rgba(' + rgb + ',0)');
-  ctx.fillStyle = grd;
+// Un solo canal no alcanza. Antes la respuesta venía casi solo del color de un
+// halo difuso, y los propios emojis lo contaminaban: el corazón tierno es rojo
+// brillante y el tomate peligroso también. Encima rojo contra verde es el peor
+// par posible, porque buena parte de los jugadores no lo distingue.
+//
+// Ahora la misma respuesta viaja por tres canales redundantes:
+//
+//   forma    puntiagudo se pega, redondo se deja pasar. Es el canal rápido:
+//            la visión periférica resuelve siluetas mucho antes que detalles,
+//            y una silueta no depende de distinguir colores. Además no hay
+//            nada que memorizar, que era el otro problema: que la papa fuera
+//            peligrosa y la torta no era una lista, no una regla.
+//   color    el borde, como refuerzo para quien sí lo ve.
+//   ícono    el emoji, el canal lento, y el único que dice la verdad.
+//
+// El relleno oscuro no es decoración: aísla el emoji del color de la cáscara,
+// que era exactamente lo que arruinaba la lectura.
+const SPIKES = 11;
+const LOBES = 7;
+
+export function shellOuter(o) {
+  return o.looksLike === 'safe' ? o.r * 1.12 : o.r * 1.35;
+}
+
+function shellPath(ctx, o) {
+  ctx.beginPath();
+  if (o.looksLike === 'safe') {
+    // Circunferencia con lóbulos suaves: de lejos es "redondo, blando".
+    for (let i = 0; i <= 72; i++) {
+      const a = (i / 72) * Math.PI * 2;
+      const rad = o.r * (1.04 + 0.08 * Math.cos(a * LOBES));
+      const x = Math.cos(a) * rad;
+      const y = Math.sin(a) * rad;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+  } else {
+    // Estrella de puntas agudas y largas: de lejos es "esto pincha".
+    for (let i = 0; i < SPIKES * 2; i++) {
+      const a = (i / (SPIKES * 2)) * Math.PI * 2 - Math.PI / 2;
+      const rad = i % 2 ? o.r * 0.95 : o.r * 1.35;
+      const x = Math.cos(a) * rad;
+      const y = Math.sin(a) * rad;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+  }
+  ctx.closePath();
+}
+
+// La forma es la masa del objeto y no su contorno. El primer intento la dibujó
+// como un borde fino alrededor del emoji, y no se leía nada: el ícono tapaba
+// la silueta y el resplandor difuminaba las puntas, que eran justo lo único
+// que había que ver.
+//
+// Relleno opaco y saturado contra la arena oscura, y adentro un disco oscuro
+// que sostiene el emoji. Así la corona lleva forma y color de lejos, y el
+// disco central mantiene el ícono legible de cerca, sin que se peleen.
+function drawShell(ctx, o) {
+  const safe = o.looksLike === 'safe';
+
+  shellPath(ctx, o);
+  ctx.fillStyle = safe ? '#3fcf88' : '#ff4453';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(0, 0, o.r * 0.74, 0, Math.PI * 2);
+  ctx.fillStyle = safe ? '#0d2118' : '#2a0e12';
+  ctx.fill();
+}
+
+// Los disfrazados son el único caso en que la cáscara miente, así que se
+// anuncian: el aro discontinuo que gira dice "este no te lo creas, leé el
+// ícono". Sin esa marca, saber que el disfraz existe obligaba a desconfiar de
+// todos los objetos, y el canal rápido dejaba de servir en toda la partida.
+// Marcado, la desconfianza dura lo que dura el objeto.
+function drawDisguise(ctx, o, now) {
+  const outer = shellOuter(o) + 9;
+  ctx.save();
+  ctx.rotate(now / 420);
+  ctx.setLineDash([5, 7]);
+  // Violeta y no blanco: el blanco ya es el blindado, y dos marcas blancas
+  // alrededor de la cáscara se confundían entre sí. Cada mecánica tiene su
+  // color y ninguno se repite: blanco blinda, amarillo se arrastra, violeta
+  // miente.
+  ctx.strokeStyle = 'rgba(198,138,255,.95)';
+  ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.arc(0, 0, outer, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 // Arcos que se van apagando: cuántos golpes le quedan se lee sin contar.
@@ -89,7 +170,7 @@ function drawArmor(ctx, o) {
   for (let i = 0; i < segments; i++) {
     ctx.beginPath();
     ctx.strokeStyle = i < o.hp ? '#cfd6e4' : 'rgba(207,214,228,.16)';
-    ctx.arc(0, 0, o.r + 6, i * step + gap / 2, (i + 1) * step - gap / 2);
+    ctx.arc(0, 0, shellOuter(o) + 5, i * step + gap / 2, (i + 1) * step - gap / 2);
     ctx.stroke();
   }
 }
@@ -105,7 +186,7 @@ function drawSwipeHint(ctx, o) {
   ctx.lineWidth = 3;
   ctx.lineCap = 'round';
   for (let i = 0; i < 3; i++) {
-    const d = o.r + 8 + i * 7;
+    const d = shellOuter(o) + 7 + i * 7;
     ctx.globalAlpha = 0.9 - i * 0.25;
     ctx.beginPath();
     ctx.moveTo(d - 5, -7);

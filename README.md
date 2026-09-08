@@ -33,12 +33,22 @@ seguidos. Al terminar podés compartir una tarjeta de 1080x1080 con tu reacción
 
 ## Objetos
 
+Lo que hay que pegarle viene con **púas y en rojo**; lo que hay que dejar
+pasar viene **redondo y en verde**. La forma es lo que se lee rápido y de
+reojo, el color es refuerzo y el ícono es la verdad. Cada mecánica tiene además
+su color propio alrededor de la cáscara, y no se repite ninguno.
+
 | | |
 |---|---|
 | Normales | un toque |
-| 🛡️ Blindados | tres toques rápidos |
-| ↩️ Deslizables | arrastralos por donde vinieron; durante el boss pegan el triple |
-| 🎭 Disfrazados | el halo de color miente, el ícono dice la verdad |
+| 🛡️ Blindados | arcos blancos: tres toques rápidos |
+| ↩️ Deslizables | galones amarillos: arrastralos por donde vinieron; durante el boss pegan el triple |
+| 🎭 Disfrazados | aro violeta punteado: la cáscara miente, el ícono dice la verdad |
+
+El aro del disfrazado avisa que ese objeto miente, y eso es a propósito. Si el
+disfraz fuera invisible, saber que existe te obligaría a desconfiar de todos
+los objetos y el canal rápido dejaría de servir en toda la partida. Marcado, la
+desconfianza dura lo que dura ese objeto.
 
 ## Progresión
 

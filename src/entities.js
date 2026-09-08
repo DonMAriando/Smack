@@ -2,14 +2,20 @@ import { CFG } from './config.js';
 import { pick } from './rng.js';
 import { unlockedObjects } from './progression.js';
 
+// Cada objeto tiene que caer de un solo lado sin pensarlo. Antes había papa y
+// media entre los peligrosos, y eso no era una regla sino una lista: el
+// jugador tenía que memorizar doce ítems, y un juego de reflejos que te hace
+// memorizar dejó de medir reflejos. Ahora los peligrosos son cosas que te
+// están tirando por la cabeza y los tiernos son cosas blandas, y la categoría
+// se adivina la primera vez que lo ves.
 const BASE_DANGER = [
   { emoji: '🩴', name: 'CHANCLA' },
   { emoji: '🐟', name: 'PESCADO' },
   { emoji: '🍅', name: 'TOMATE' },
   { emoji: '🦟', name: 'MOSQUITO' },
   { emoji: '🥊', name: 'GUANTE' },
-  { emoji: '🧦', name: 'MEDIA' },
-  { emoji: '🥔', name: 'PAPA' },
+  { emoji: '🌵', name: 'CACTUS' },
+  { emoji: '🧨', name: 'PETARDO' },
 ];
 
 const BASE_SAFE = [
@@ -18,6 +24,7 @@ const BASE_SAFE = [
   { emoji: '🎂', name: 'TORTA' },
   { emoji: '🧸', name: 'OSITO' },
   { emoji: '🌈', name: 'ARCOÍRIS' },
+  { emoji: '🐥', name: 'POLLITO' },
 ];
 
 // Se resuelve al empezar cada partida y no en cada spawn: los desbloqueos no
@@ -42,11 +49,14 @@ export function refreshPools() {
 // La última es la más importante: el brillo rojo o verde es un atajo que el
 // jugador aprende en dos partidas, y el disfraz invierte ese brillo. Quien
 // leía el color se equivoca; quien lee el objeto, no.
+// El radio subió un poco respecto de la versión anterior: la forma solo sirve
+// como canal de lectura rápida si hay silueta suficiente para distinguir una
+// punta de un lóbulo desde el borde de la pantalla.
 export const VARIANT = {
-  plain: { hp: 1, radius: 28 },
-  armored: { hp: 3, radius: 32 },
-  deflect: { hp: 1, radius: 30 },
-  disguised: { hp: 1, radius: 28 },
+  plain: { hp: 1, radius: 30 },
+  armored: { hp: 3, radius: 34 },
+  deflect: { hp: 1, radius: 32 },
+  disguised: { hp: 1, radius: 30 },
 };
 
 // Elige variante entre las habilitadas a esta altura de la partida, con pesos.
@@ -89,11 +99,15 @@ export function spawn({ rng, w, h, elapsed, boss, kind, variant = 'plain' }) {
   const base = CFG.speed.base + elapsed * CFG.speed.ramp + (boss ? CFG.speed.bossBonus : 0);
   const speed = Math.min(CFG.speed.max, base + rng() * CFG.speed.jitter);
 
+  // Lo que la cáscara le dice al jugador. En los disfrazados miente, y por eso
+  // esos vienen marcados con un aro giratorio que avisa que hay que leer el
+  // ícono.
+  const looksLike = variant === 'disguised' ? (kind === 'safe' ? 'danger' : 'safe') : kind;
+
   return {
     kind,
     variant,
-    // Lo que el brillo le dice al jugador. En los disfrazados miente.
-    looksLike: variant === 'disguised' ? (kind === 'safe' ? 'danger' : 'safe') : kind,
+    looksLike,
     deflected: false,
     x, y,
     vx: (dx / len) * speed,
@@ -108,7 +122,10 @@ export function spawn({ rng, w, h, elapsed, boss, kind, variant = 'plain' }) {
     dead: false,
     hitFlash: 0,
     rot: (rng() - 0.5) * 0.5,
-    spin: (rng() - 0.5) * 1.8,
+    // El giro es un cuarto canal de lectura, arriba de forma, color e ícono:
+    // lo peligroso viene agitado y lo tierno flota tranquilo. Sigue a looksLike
+    // para que el disfraz no se delate por moverse distinto.
+    spin: (rng() - 0.5) * (looksLike === 'safe' ? 0.35 : 1.5),
   };
 }
 

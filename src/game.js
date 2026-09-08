@@ -242,7 +242,7 @@ function damageBoss(n) {
 const VARIANT_INTRO = {
   armored: '🛡️ BLINDADO · 3 TOQUES',
   deflect: '↩️ ARRASTRALO PARA DEVOLVERLO',
-  disguised: '🎭 OJO: HAY DISFRAZADOS',
+  disguised: '🎭 EL ARO PUNTEADO MIENTE · LEÉ EL ÍCONO',
 };
 
 function introduceVariant(id) {
