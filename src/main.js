@@ -81,4 +81,7 @@ if ('serviceWorker' in navigator) {
 renderStartRecords();
 drawIdle();
 
+// Le avisa a la guardia de arranque de index.html que los módulos cargaron.
+window.__smackBooted = true;
+
 export { CFG, ensureAudio, loop };

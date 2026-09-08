@@ -71,7 +71,9 @@
     #missionList div.done{color:var(--text);border-color:rgba(96,229,158,.5);background:rgba(96,229,158,.09)}
     #missionList b{margin-left:auto;font-size:11px;color:var(--muted)}
     #missionList div.done b{color:var(--safe)}
-    #gameOver{display:none}
+    #gameOver,#bootError{display:none}
+    #bootFix{font-size:13px;color:var(--muted);line-height:1.5}
+    #bootFix code{display:inline-block;background:#14161b;border:1px solid var(--line);border-radius:8px;padding:6px 9px;color:var(--accent);font-size:12px;margin-top:2px}
     .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0}
     .stat{padding:12px;border-radius:15px;border:1px solid var(--line);background:#14161b}
     .stat b{display:block;font-size:24px}
@@ -143,8 +145,40 @@
     </section>
 
     <button id="mute" type="button" aria-label="Silenciar sonido">🔊</button>
+
+    <section id="bootError" class="centerCard">
+      <div class="logo">UPS<span>!</span></div>
+      <p class="subtitle" id="bootReason"></p>
+      <div id="bootFix"></div>
+    </section>
   </main>
 
+  <!-- BUILD:SCRIPTS -->
+  <script>
+    // Guardia de arranque, en un script clásico y no en un módulo, porque
+    // justamente tiene que sobrevivir a que los módulos no carguen.
+    //
+    // Los módulos ES están bloqueados por CORS desde file://, así que al abrir
+    // el archivo con doble clic el juego quedaba muerto en silencio: la
+    // pantalla se veía perfecta y el botón de empezar no hacía nada, porque
+    // nunca se había conectado ningún listener.
+    window.__smackBooted = false;
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        if (window.__smackBooted) return;
+        var local = location.protocol === 'file:';
+        document.getElementById('start').style.display = 'none';
+        document.getElementById('bootReason').textContent = local
+          ? 'Abriste el archivo directamente. El juego usa módulos ES y un service worker, y el navegador los bloquea desde file:// por seguridad.'
+          : 'Los módulos del juego no cargaron. Revisá la consola del navegador.';
+        document.getElementById('bootFix').innerHTML = local
+          ? 'Servilo por HTTP desde la carpeta del proyecto:<br><br><code>npx http-server . -p 8123 -c-1</code><br><br>y entrá a <code>http://localhost:8123</code>.<br><br>O usá la versión de un solo archivo:<br><code>dist/index.html</code>'
+          : '';
+        document.getElementById('bootError').style.display = 'block';
+      }, 1200);
+    });
+  </script>
   <script type="module" src="./src/main.js"></script>
+  <!-- /BUILD:SCRIPTS -->
 </body>
 </html>

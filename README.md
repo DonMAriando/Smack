@@ -48,16 +48,29 @@ dan experiencia extra.
 
 ## Ejecutar
 
+Hay dos formas.
+
+**Servido por HTTP**, que es la de desarrollo:
+
 ```
 npx http-server . -p 8123 -c-1
 ```
 
-Y abrilo en `http://localhost:8123`. Hace falta servirlo por HTTP porque usa
-módulos ES y un service worker, y ninguno de los dos funciona desde `file://`.
-Para probar en el celular, entrá desde el teléfono a la IP de la máquina en la
-misma red.
+Y abrilo en `http://localhost:8123`. Para probar en el celular, entrá desde el
+teléfono a la IP de la máquina en la misma red.
 
-Sin dependencias ni paso de build. Los iconos se regeneran con
+**Un solo archivo**, `dist/index.html`, que se abre con doble clic:
+
+```
+node scripts/build.mjs
+```
+
+El `index.html` de la raíz **no** funciona con doble clic: usa módulos ES, y el
+navegador los bloquea desde `file://` por CORS. Si lo intentás, el juego avisa
+en pantalla en vez de quedarse mudo. Esa es también la razón de que exista
+`dist/`: para subir a itch.io conviene un ZIP con `index.html` en la raíz.
+
+Sin dependencias en runtime. Los iconos se regeneran con
 `node scripts/make-icons.mjs`.
 
 ## Instalable
