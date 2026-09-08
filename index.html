@@ -47,6 +47,11 @@
     .rule b{display:block;margin-top:4px}
     button{width:100%;min-height:52px;border:0;border-radius:16px;font-size:18px;font-weight:1000;background:var(--accent);color:#181818;cursor:pointer}
     button:active{transform:scale(.99)}
+    button.ghost{background:transparent;color:var(--text);border:1px solid var(--line);margin-top:8px;font-size:15px;min-height:46px}
+    .recStrip{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:14px 0 2px}
+    .recStrip div{background:#14161b;border:1px solid var(--line);border-radius:12px;padding:7px 11px;font-size:12px;color:var(--muted)}
+    .recStrip b{color:var(--text);font-size:14px}
+    #recordBadge{display:none;margin:0 0 14px;font-size:13px;font-weight:1000;letter-spacing:.04em;color:var(--accent);background:rgba(255,213,74,.1);border:1px solid rgba(255,213,74,.45);border-radius:12px;padding:10px}
     #gameOver{display:none}
     .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0}
     .stat{padding:12px;border-radius:15px;border:1px solid var(--line);background:#14161b}
@@ -91,6 +96,7 @@
         <div class="rule"><div class="emoji">❤️ 🐱 🎂</div><b>NO TOQUES</b><small>dejalo pasar</small></div>
       </div>
       <button id="startBtn" type="button">TOCAR PARA EMPEZAR</button>
+      <div id="startRecords" class="recStrip"></div>
       <div class="smallNote">45 segundos · 3 vidas · FEVER al combo x10</div>
     </section>
 
@@ -103,8 +109,10 @@
         <div class="stat"><b id="finalCombo">0</b><span>Combo máximo</span></div>
         <div class="stat"><b id="finalHits">0</b><span>Smacks</span></div>
       </div>
+      <div id="recordBadge"></div>
       <button id="restartBtn" type="button">OTRA VEZ</button>
-      <div class="smallNote">Tip: un toque temprano vale más que uno desesperado.</div>
+      <button id="shareBtn" type="button" class="ghost">📤 COMPARTIR MI REACCIÓN</button>
+      <div class="smallNote">Tocá en cualquier lado o apretá espacio para repetir.</div>
     </section>
 
     <button id="mute" type="button" aria-label="Silenciar sonido">🔊</button>
@@ -137,6 +145,9 @@
     mute: document.getElementById('mute'),
     bossWrap: document.getElementById('bossBarWrap'),
     bossFill: document.getElementById('bossFill'),
+    startRecords: document.getElementById('startRecords'),
+    recordBadge: document.getElementById('recordBadge'),
+    shareBtn: document.getElementById('shareBtn'),
   };
 
   const dangerSet = [
@@ -164,6 +175,7 @@
   let spawnClock=0;
   let objects=[];
   let particles=[];
+  let pendingSpawns=[];
   let score=0;
   let combo=0;
   let maxCombo=0;
@@ -178,6 +190,35 @@
   let shake=0;
   let muted=false;
   let audioCtx=null;
+  let noiseBuffer=null;
+
+  // Congela la simulación unos ms en cada impacto. Es lo que hace que un tap
+  // se sienta como un golpe y no como un cambio de estado.
+  let hitstop=0;
+  let timeScale=1;
+  // Momento a partir del cual un tap en cualquier lado reinicia. Sin esta
+  // guarda, los taps frenéticos con los que perdés reinician al instante y
+  // nunca llegás a ver tu puntaje ni el botón de compartir.
+  let restartArmedAt=0;
+
+  const SAVE_KEY='smack.save.v1';
+  const save=loadSave();
+
+  function loadSave(){
+    const empty={bestScore:0,bestReaction:null,runs:0,streak:0,lastPlayed:null};
+    try{
+      const raw=localStorage.getItem(SAVE_KEY);
+      return raw ? Object.assign(empty,JSON.parse(raw)) : empty;
+    }catch(e){
+      return empty;
+    }
+  }
+  function persist(){
+    try{ localStorage.setItem(SAVE_KEY,JSON.stringify(save)); }catch(e){}
+  }
+  function todayStamp(){
+    return new Date().toISOString().slice(0,10);
+  }
 
   function resize(){
     const r=app.getBoundingClientRect();
@@ -197,6 +238,10 @@
     if(muted) return;
     if(!audioCtx){
       audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const len=Math.floor(audioCtx.sampleRate*.3);
+      noiseBuffer=audioCtx.createBuffer(1,len,audioCtx.sampleRate);
+      const data=noiseBuffer.getChannelData(0);
+      for(let i=0;i<len;i++) data[i]=Math.random()*2-1;
     }
     if(audioCtx.state==='suspended') audioCtx.resume();
   }
@@ -214,15 +259,54 @@
     o.start(t);o.stop(t+dur);
   }
 
+  // Un golpe real es ruido de banda ancha con un transitorio corto y afinado
+  // debajo. Un oscilador solo suena a menú, no a impacto.
+  function impact({pitch=180,dur=.16,vol=.5,bright=1400}={}){
+    if(muted) return;
+    ensureAudio();
+    if(!audioCtx||!noiseBuffer) return;
+    const t=audioCtx.currentTime;
+
+    const noise=audioCtx.createBufferSource();
+    noise.buffer=noiseBuffer;
+    const bp=audioCtx.createBiquadFilter();
+    bp.type='bandpass';
+    bp.frequency.setValueAtTime(bright,t);
+    bp.frequency.exponentialRampToValueAtTime(Math.max(120,bright*.25),t+dur);
+    bp.Q.value=.8;
+    const ng=audioCtx.createGain();
+    ng.gain.setValueAtTime(vol*.5,t);
+    ng.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    noise.connect(bp).connect(ng).connect(audioCtx.destination);
+    noise.start(t);noise.stop(t+dur);
+
+    const body=audioCtx.createOscillator();
+    const bg=audioCtx.createGain();
+    body.type='triangle';
+    body.frequency.setValueAtTime(pitch*2.2,t);
+    body.frequency.exponentialRampToValueAtTime(pitch,t+dur*.7);
+    bg.gain.setValueAtTime(vol*.42,t);
+    bg.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    body.connect(bg).connect(audioCtx.destination);
+    body.start(t);body.stop(t+dur);
+  }
+
+  function haptic(pattern){
+    if(muted) return;
+    try{ navigator.vibrate && navigator.vibrate(pattern); }catch(e){}
+  }
+
   function reset(){
     objects=[];
     particles=[];
+    pendingSpawns=[];
     elapsed=0;
     remaining=45;
     spawnClock=0;
     score=0; combo=0; maxCombo=0; lives=3;
     bestReaction=null; hits=0;
     feverUntil=0; boss=false; bossHp=0; bossStarted=false; shake=0;
+    hitstop=0; timeScale=1;
     updateHud();
   }
 
@@ -232,6 +316,8 @@
     last=performance.now();
     el.start.style.display='none';
     el.gameOver.style.display='none';
+    el.recordBadge.style.display='none';
+    el.reactionLine.textContent='';
     ensureAudio();
     requestAnimationFrame(loop);
   }
@@ -239,17 +325,74 @@
   function endGame(){
     if(!running) return;
     running=false;
+    timeScale=1;
+    hitstop=0;
+
+    const finalScore=Math.floor(score);
+    const previousBest=save.bestScore;
+    // La primera partida fija la marca de referencia; no tiene sentido
+    // felicitar a alguien por superar un récord que no existía.
+    const firstRun=save.runs===0;
+    const scoreRecord=finalScore>save.bestScore && !firstRun;
+    const reactionRecord=bestReaction!==null && !firstRun &&
+      (save.bestReaction===null || bestReaction<save.bestReaction);
+
+    const today=todayStamp();
+    if(save.lastPlayed!==today){
+      const yesterday=new Date(Date.now()-864e5).toISOString().slice(0,10);
+      save.streak = save.lastPlayed===yesterday ? save.streak+1 : 1;
+      save.lastPlayed=today;
+    }
+    save.runs++;
+    // Se guarda siempre, aunque no lo festejemos en pantalla.
+    if(finalScore>save.bestScore) save.bestScore=finalScore;
+    if(bestReaction!==null && (save.bestReaction===null || bestReaction<save.bestReaction))
+      save.bestReaction=bestReaction;
+    persist();
+
     el.bossWrap.style.display='none';
     el.fever.style.display='none';
-    el.finalScore.textContent=Math.floor(score);
+    el.finalScore.textContent=finalScore;
     el.finalBest.textContent=bestReaction ? Math.round(bestReaction)+' ms' : '—';
     el.finalCombo.textContent=maxCombo;
     el.finalHits.textContent=hits;
-    if(score>=7000) el.endMessage.textContent='Ok. Eso ya fue violencia profesional.';
-    else if(score>=4500) el.endMessage.textContent='Tu dedo está peligrosamente entrenado.';
-    else if(score>=2500) el.endMessage.textContent='Bien. Ahora hacelo más rápido.';
+
+    if(reactionRecord && scoreRecord){
+      el.recordBadge.textContent='🏆 DOBLE RÉCORD: puntaje y reacción';
+      el.recordBadge.style.display='block';
+    }else if(reactionRecord){
+      el.recordBadge.textContent='⚡ REACCIÓN RÉCORD: '+Math.round(bestReaction)+' ms';
+      el.recordBadge.style.display='block';
+    }else if(scoreRecord){
+      el.recordBadge.textContent='🏆 PUNTAJE RÉCORD: '+finalScore;
+      el.recordBadge.style.display='block';
+    }else{
+      el.recordBadge.style.display='none';
+    }
+
+    if(reactionRecord||scoreRecord){
+      el.endMessage.textContent='Rompiste tu propio techo.';
+      impact({pitch:420,dur:.5,vol:.55,bright:3200});
+      haptic([0,30,40,30,40,90]);
+    }
+    else if(finalScore>=7000) el.endMessage.textContent='Ok. Eso ya fue violencia profesional.';
+    else if(finalScore>=4500) el.endMessage.textContent='Tu dedo está peligrosamente entrenado.';
+    else if(finalScore>=2500) el.endMessage.textContent='Bien. Ahora hacelo más rápido.';
+    else if(previousBest>0 && previousBest-finalScore<400) el.endMessage.textContent='Te faltó nada para tu récord.';
     else el.endMessage.textContent='Ya entendiste la idea. Otra vez.';
+
+    el.shareBtn.style.display=bestReaction?'block':'none';
     el.gameOver.style.display='block';
+    restartArmedAt=performance.now()+700;
+    renderStartRecords();
+  }
+
+  function renderStartRecords(){
+    const parts=[];
+    if(save.bestScore>0) parts.push('<div>Récord<br><b>'+save.bestScore+'</b></div>');
+    if(save.bestReaction!==null) parts.push('<div>Tu mejor reacción<br><b>'+Math.round(save.bestReaction)+' ms</b></div>');
+    if(save.streak>1) parts.push('<div>Racha<br><b>🔥 '+save.streak+' días</b></div>');
+    el.startRecords.innerHTML=parts.join('');
   }
 
   function updateHud(){
@@ -302,7 +445,7 @@
     objects.push({
       x,y,vx:dx/len*speed,vy:dy/len*speed,
       safe,emoji:src.emoji,name:src.name,r:radius,
-      born:performance.now(),dead:false,rot:(Math.random()-.5)*.5,
+      born:performance.now(),seen:null,dead:false,rot:(Math.random()-.5)*.5,
       spin:(Math.random()-.5)*1.8
     });
   }
@@ -330,7 +473,7 @@
 
   function hitDanger(o){
     const now=performance.now();
-    const ms=now-o.born;
+    const ms=now-(o.seen??o.born);
     bestReaction = bestReaction===null ? ms : Math.min(bestReaction,ms);
     combo++;
     maxCombo=Math.max(maxCombo,combo);
@@ -340,6 +483,10 @@
       feverUntil=now+6000;
       showToast('🔥 FEVER!');
       blip(680,.12,'sawtooth',.055);
+      impact({pitch:300,dur:.3,vol:.5,bright:2600});
+      haptic([0,22,30,22,30,60]);
+      hitstop=.14;
+      shake=18;
     }
 
     const fever=now<feverUntil;
@@ -354,7 +501,10 @@
         boss=false;
         score+=1500;
         showToast('👵 BOSS KO +1500');
-        blip(120,.22,'sawtooth',.07);
+        impact({pitch:90,dur:.55,vol:.7,bright:900});
+        haptic([0,90,70,140]);
+        hitstop=.26;
+        shake=22;
         el.bossWrap.style.display='none';
       }
     }
@@ -362,8 +512,14 @@
     el.reactionLine.textContent=reactionRank(ms)+' · '+Math.round(ms)+' ms';
     showToast(reactionRank(ms));
     burst(o.x,o.y,'💥',true);
-    blip(250+Math.min(combo,15)*18,.045,'square',.045);
-    shake=Math.min(10,3+combo*.2);
+
+    // Cuanto más limpia la reacción, más largo el congelamiento: el juego
+    // premia el reflejo haciéndose sentir más, no solo sumando puntos.
+    const crisp=Math.max(0,1-ms/400);
+    hitstop=Math.max(hitstop,.035+crisp*.04);
+    shake=Math.min(14,4+combo*.25+crisp*4);
+    impact({pitch:150+Math.min(combo,18)*9,dur:.15,vol:.5,bright:1100+crisp*1700});
+    haptic(fever?[0,16,24,16]:[0,13]);
     o.dead=true;
   }
 
@@ -373,10 +529,19 @@
     el.reactionLine.textContent='NOOO · '+o.name;
     showToast('💔 NO TOQUES');
     burst(o.x,o.y,'💔',false);
-    blip(90,.18,'sawtooth',.065);
-    shake=11;
+    impact({pitch:70,dur:.34,vol:.6,bright:420});
+    haptic([0,45,60,110]);
+    hitstop=.11;
+    shake=13;
     o.dead=true;
+    updateTension();
     if(lives<=0) endGame();
+  }
+
+  function updateTension(){
+    // La última vida entra en cámara lenta. Convierte el final en el momento
+    // más tenso de la partida en vez del más frustrante.
+    timeScale = (running && lives===1) ? .78 : 1;
   }
 
   function pointerToCanvas(e){
@@ -411,8 +576,14 @@
       bossStarted=true;
       boss=true;
       bossHp=bossMaxHp;
+      // Limpia lo que venía en vuelo: la fase del boss arranca en cancha
+      // despejada en vez de apilarse sobre la oleada anterior.
+      for(const o of objects) o.dead=true;
       showToast('👵 ABUELA CHANCLA');
-      blip(110,.28,'square',.07);
+      impact({pitch:64,dur:.7,vol:.7,bright:600});
+      haptic([0,120,80,120]);
+      hitstop=.3;
+      shake=20;
     }
 
     const interval = boss
@@ -422,14 +593,25 @@
     spawnClock-=dt;
     if(spawnClock<=0){
       spawnObject(boss);
-      if(boss && Math.random()<.24) setTimeout(()=>running&&spawnObject(true),95);
+      // Antes esto era un setTimeout, así que el segundo objeto aparecía
+      // durante el hitstop y sobrevivía a la pausa y al fin de partida.
+      if(boss && Math.random()<.24) pendingSpawns.push({t:.095,danger:true});
       spawnClock=interval*(.82+Math.random()*.38);
     }
+
+    for(const p of pendingSpawns) p.t-=dt;
+    for(const p of pendingSpawns) if(p.t<=0) spawnObject(p.danger);
+    pendingSpawns=pendingSpawns.filter(p=>p.t>0);
 
     const cx=w/2, cy=h*.55;
     for(const o of objects){
       if(o.dead) continue;
       o.x+=o.vx*dt;o.y+=o.vy*dt;o.rot+=o.spin*dt;
+
+      // El cronómetro de reacción arranca cuando el objeto entra en pantalla,
+      // no cuando nace fuera del borde: nacen a distintas distancias del
+      // centro, así que medir desde el nacimiento daba números inventados.
+      if(o.seen===null && o.x>-o.r && o.x<w+o.r && o.y>-o.r && o.y<h+o.r) o.seen=now;
 
       const d=Math.hypot(o.x-cx,o.y-cy);
       if(d<37){
@@ -441,8 +623,11 @@
           combo=0;
           lives--;
           showToast('💥 TE PEGÓ');
-          blip(75,.2,'sawtooth',.065);
-          shake=13;
+          impact({pitch:58,dur:.4,vol:.65,bright:340});
+          haptic([0,60,50,130]);
+          hitstop=.13;
+          shake=16;
+          updateTension();
           if(lives<=0){endGame();return}
         }
       }
@@ -458,12 +643,14 @@
     updateHud();
   }
 
-  function draw(now){
+  function draw(now,real=1/60){
     ctx.save();
     ctx.clearRect(0,0,w,h);
     if(shake>0){
       ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
-      shake*=.83;
+      // Decae por segundo, no por frame: antes el temblor duraba más en un
+      // celular de 60 Hz que en uno de 120 Hz.
+      shake*=Math.exp(-real*10);
       if(shake<.4) shake=0;
     }
 
@@ -525,15 +712,129 @@
 
   function loop(now){
     if(!running) return;
-    const dt=Math.min(.033,(now-last)/1000||0);
+    // El tope de 50 ms evita el túnel de colisión sin ralentizar el juego en
+    // cada hipo de frame, que era lo que pasaba con el tope de 33 ms.
+    const real=Math.min(.05,(now-last)/1000||0);
     last=now;
-    update(dt,now);
-    draw(now);
+
+    if(hitstop>0){
+      hitstop-=real;
+      draw(now,real);
+      requestAnimationFrame(loop);
+      return;
+    }
+
+    update(real*timeScale,now);
+    draw(now,real);
     if(running) requestAnimationFrame(loop);
   }
 
+  // La tarjeta se dibuja en un canvas aparte a 1080x1080 para que entre bien
+  // en historias de Instagram y en estados de WhatsApp.
+  function buildShareCard(ms){
+    return new Promise((resolve,reject)=>{
+      const c=document.createElement('canvas');
+      c.width=1080;c.height=1080;
+      const g=c.getContext('2d');
+
+      const grd=g.createLinearGradient(0,0,0,1080);
+      grd.addColorStop(0,'#1b1d24');
+      grd.addColorStop(1,'#0d0e11');
+      g.fillStyle=grd;g.fillRect(0,0,1080,1080);
+
+      g.strokeStyle='rgba(255,255,255,.07)';g.lineWidth=2;
+      for(let r=140;r<920;r+=110){g.beginPath();g.arc(540,470,r,0,Math.PI*2);g.stroke();}
+
+      g.textAlign='center';
+      g.fillStyle='#ffd54a';
+      g.font='900 96px system-ui, sans-serif';
+      g.fillText('SMACK!',540,175);
+
+      g.fillStyle='#a7abb5';
+      g.font='700 40px system-ui, sans-serif';
+      g.fillText('MI MEJOR REACCIÓN',540,395);
+
+      g.fillStyle='#f7f7f8';
+      g.font='1000 250px system-ui, sans-serif';
+      g.fillText(String(ms),540,605);
+      g.fillStyle='#ffd54a';
+      g.font='900 70px system-ui, sans-serif';
+      g.fillText('ms',540,688);
+
+      g.fillStyle='#f7f7f8';
+      g.font='700 46px system-ui, sans-serif';
+      g.fillText(reactionRank(ms),540,790);
+
+      g.fillStyle='#a7abb5';
+      g.font='600 38px system-ui, sans-serif';
+      g.fillText('Puntaje '+Math.floor(score)+' · Combo máximo x'+maxCombo,540,878);
+
+      g.fillStyle='#60e59e';
+      g.font='700 40px system-ui, sans-serif';
+      g.fillText('¿Podés más rápido?',540,970);
+
+      c.toBlob(b=>{
+        b ? resolve(new File([b],'smack.png',{type:'image/png'}))
+          : reject(new Error('toBlob falló'));
+      },'image/png');
+    });
+  }
+
+  function flashShareBtn(label){
+    const prev='📤 COMPARTIR MI REACCIÓN';
+    el.shareBtn.textContent=label;
+    clearTimeout(flashShareBtn._t);
+    flashShareBtn._t=setTimeout(()=>{el.shareBtn.textContent=prev},1600);
+  }
+
+  async function shareResult(){
+    if(bestReaction===null) return;
+    const ms=Math.round(bestReaction);
+    const text='Reaccioné en '+ms+' ms en SMACK! 🩴 ¿Podés más rápido?';
+
+    let file=null;
+    try{ file=await buildShareCard(ms); }catch(e){}
+
+    if(file && navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],text}); return; }
+      catch(e){ if(e.name==='AbortError') return; }
+    }
+    if(navigator.share){
+      try{ await navigator.share({text}); return; }
+      catch(e){ if(e.name==='AbortError') return; }
+    }
+    try{
+      await navigator.clipboard.writeText(text);
+      flashShareBtn('📋 COPIADO AL PORTAPAPELES');
+      return;
+    }catch(e){}
+    if(file){
+      const url=URL.createObjectURL(file);
+      const a=document.createElement('a');
+      a.href=url;a.download='smack.png';a.click();
+      URL.revokeObjectURL(url);
+      flashShareBtn('⬇️ IMAGEN DESCARGADA');
+    }
+  }
+
+  el.shareBtn.addEventListener('click',shareResult);
   el.startBtn.addEventListener('click',startGame);
   el.restartBtn.addEventListener('click',startGame);
+
+  // Reintentar tiene que costar cero. Un tap en cualquier lado de la pantalla
+  // de fin, o la barra espaciadora en desktop.
+  app.addEventListener('pointerdown',e=>{
+    if(running) return;
+    if(el.gameOver.style.display!=='block') return;
+    if(performance.now()<restartArmedAt) return;
+    if(e.target.closest('button')) return;
+    startGame();
+  });
+  window.addEventListener('keydown',e=>{
+    if(e.code!=='Space'&&e.code!=='Enter') return;
+    e.preventDefault();
+    if(!running) startGame();
+  });
   el.mute.addEventListener('click',()=>{
     muted=!muted;
     el.mute.textContent=muted?'🔇':'🔊';
@@ -541,6 +842,7 @@
     if(!muted) ensureAudio();
   });
 
+  renderStartRecords();
   draw(performance.now());
 })();
 </script>

@@ -10,6 +10,14 @@ SMACK! es un mini juego de reacción vertical, pensado primero para celular.
 - El combo x10 activa FEVER x3.
 - A los 27 segundos aparece el boss: **Abuela Chancla**.
 - Cada partida dura 45 segundos.
+- Con una sola vida el tiempo entra en cámara lenta.
+
+## Récords
+
+El juego mide tu latencia real de reacción: el cronómetro de cada objeto
+arranca cuando entra en pantalla, no cuando nace fuera del borde. Se guardan en
+el dispositivo tu mejor puntaje, tu mejor reacción histórica y tu racha de días
+seguidos. Al terminar podés compartir una tarjeta de 1080x1080 con tu reacción.
 
 ## Controles
 
