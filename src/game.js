@@ -49,6 +49,9 @@ export const s = {
   rng: Math.random,
 
   mode: 'free',
+  // Libreto de la primera partida. Vacío en todas las demás.
+  script: [],
+  opening: false,
   missions: [],
   // Contadores que las misiones consultan. Están acá y no dentro de cada
   // misión para poder agregar objetivos nuevos sin tocar el game loop.
@@ -113,6 +116,10 @@ export function startGame(mode = 'free') {
   // las mismas. Van con su propio rng para no consumir de la secuencia de
   // spawns, que si no se desincronizaría entre jugadores.
   s.missions = pickMissions(daily ? makeRng(dailySeed() ^ 0x9e3779b9) : Math.random);
+
+  // Solo la primera partida de todas, y solo en libre.
+  s.opening = !daily && save.runs === 0;
+  s.script = s.opening ? CFG.opening.script.map((x) => ({ ...x })) : [];
 
   // Los desbloqueos no cambian a mitad de partida, así que se resuelven una
   // sola vez acá.
@@ -574,10 +581,33 @@ export function pointerUp() {
 }
 
 function doSpawn(forceDanger) {
-  const kind = rollKind({ rng: s.rng, elapsed: s.elapsed, boss: s.boss, forceDanger });
-  const variant = rollVariant({ rng: s.rng, elapsed: s.elapsed, boss: s.boss, kind });
+  // El guion de la primera partida manda por encima del azar. Consume del
+  // libreto y no del rng, así que la secuencia enseña siempre lo mismo.
+  const scripted = s.script.length ? s.script.shift() : null;
+  const kind = scripted ? scripted.kind : rollKind({ rng: s.rng, elapsed: s.elapsed, boss: s.boss, forceDanger });
+  const variant = scripted
+    ? scripted.variant
+    : rollVariant({ rng: s.rng, elapsed: s.elapsed, boss: s.boss, kind });
   introduceVariant(variant);
-  s.objects.push(spawn({ rng: s.rng, w: s.w, h: s.h, elapsed: s.elapsed, boss: s.boss, kind, variant }));
+  s.objects.push(
+    spawn({
+      rng: s.rng,
+      w: s.w,
+      h: s.h,
+      elapsed: s.elapsed,
+      boss: s.boss,
+      kind,
+      variant,
+      speedScale: openingEase() ? CFG.opening.speedScale : 1,
+    })
+  );
+}
+
+// La ayuda de la primera partida se apaga sola con el tiempo, sin avisar. Si
+// durara toda la partida, el jugador aprendería un juego que después no
+// existe.
+function openingEase() {
+  return s.opening && s.elapsed < CFG.opening.until;
 }
 
 function update(dt, now) {
@@ -603,9 +633,12 @@ function update(dt, now) {
   }
 
   const sp = CFG.spawn;
-  const interval = s.boss
+  let interval = s.boss
     ? sp.bossInterval
     : Math.max(sp.minInterval, sp.baseInterval - s.elapsed * sp.rampPerSecond - Math.min(s.combo, 15) * sp.comboRelief);
+  // En la primera partida los objetos vienen de a uno y con aire, para que se
+  // pueda mirar uno solo y entenderlo.
+  if (openingEase()) interval *= CFG.opening.intervalScale;
 
   s.spawnClock -= dt;
   if (s.spawnClock <= 0) {

@@ -49,10 +49,6 @@
     .logo{font-size:54px;font-weight:1000;letter-spacing:-.06em;margin:0 0 8px}
     .logo span{color:var(--accent)}
     .subtitle{color:var(--muted);font-size:15px;line-height:1.4;margin:0 auto 18px;max-width:360px}
-    .rules{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0}
-    .rule{border:1px solid var(--line);background:#14161b;border-radius:16px;padding:12px}
-    .rule .emoji{font-size:28px}
-    .rule b{display:block;margin-top:4px}
     button{width:100%;min-height:52px;border:0;border-radius:16px;font-size:18px;font-weight:1000;background:var(--accent);color:#181818;cursor:pointer}
     button:active{transform:scale(.99)}
     button.ghost{background:transparent;color:var(--text);border:1px solid var(--line);margin-top:8px;font-size:15px;min-height:46px}
@@ -72,6 +68,11 @@
     #missionList b{margin-left:auto;font-size:11px;color:var(--muted)}
     #missionList div.done b{color:var(--safe)}
     #gameOver,#bootError{display:none}
+    #legend{display:flex;gap:10px;justify-content:center;margin:16px 0 18px}
+    .legendItem{flex:1;background:#14161b;border:1px solid var(--line);border-radius:16px;padding:12px 6px}
+    .legendIcon{display:block;margin:0 auto 6px;width:60px;height:60px}
+    .legendItem b{display:block;font-size:12px;letter-spacing:.08em}
+    .legendItem span{display:block;font-size:10px;color:var(--muted);margin-top:2px}
     #bootFix{font-size:13px;color:var(--muted);line-height:1.5}
     #bootFix code{display:inline-block;background:#14161b;border:1px solid var(--line);border-radius:8px;padding:6px 9px;color:var(--accent);font-size:12px;margin-top:2px}
     .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0}
@@ -112,10 +113,19 @@
     <section id="start" class="centerCard">
       <div class="logo">SMACK<span>!</span></div>
       <p class="subtitle">Todo lo que necesitás saber entra en dos segundos: pegale a lo peligroso. No toques lo tierno.</p>
-      <div class="rules">
-        <div class="rule"><div class="emoji">🩴 🐟 🦟</div><b>PEGÁ</b><small>antes de que llegue</small></div>
-        <div class="rule"><div class="emoji">❤️ 🐱 🎂</div><b>NO TOQUES</b><small>dejalo pasar</small></div>
+      <div id="legend">
+        <div class="legendItem">
+          <canvas class="legendIcon" width="76" height="76" data-looks="danger" data-emoji="🩴"></canvas>
+          <b>PEGALE</b>
+          <span>púas y rojo</span>
+        </div>
+        <div class="legendItem">
+          <canvas class="legendIcon" width="76" height="76" data-looks="safe" data-emoji="🐱"></canvas>
+          <b>NO TOQUES</b>
+          <span>redondo y verde</span>
+        </div>
       </div>
+
       <button id="startBtn" type="button">TOCAR PARA EMPEZAR</button>
       <button id="dailyBtn" type="button" class="ghost">📅 DESAFÍO DEL DÍA</button>
       <div id="startRecords" class="recStrip"></div>

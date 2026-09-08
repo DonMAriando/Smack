@@ -2,6 +2,7 @@ import { CFG } from './config.js';
 import { el, renderStartRecords } from './hud.js';
 import { setMuted, isMuted, ensureAudio } from './feedback.js';
 import { shareResult } from './share.js';
+import { drawSample } from './render.js';
 import { s, resize, startGame, loop, pointerDown, pointerMove, pointerUp, drawIdle } from './game.js';
 
 window.addEventListener('resize', resize);
@@ -76,6 +77,13 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   });
+}
+
+// La leyenda de la pantalla de inicio, dibujada con el mismo código que los
+// objetos del juego. Es lo primero que ve un jugador nuevo, y el lenguaje de
+// formas hay que aprenderlo antes de que llegue el primer objeto, no durante.
+for (const cv of document.querySelectorAll('.legendIcon')) {
+  drawSample(cv.getContext('2d'), cv.width / 2, cv.height / 2, cv.dataset.looks, cv.dataset.emoji, 26);
 }
 
 renderStartRecords();

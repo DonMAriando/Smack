@@ -189,6 +189,23 @@ function drawShell(ctx, o) {
   ctx.fill();
 }
 
+// Una muestra suelta de un objeto, para la leyenda de la pantalla de inicio.
+// Usa el mismo código que el juego a propósito: una leyenda dibujada aparte se
+// desincroniza del juego en el primer cambio de forma, y entonces enseña mal,
+// que es peor que no enseñar.
+export function drawSample(ctx, cx, cy, looksLike, emoji, r = 26) {
+  const o = { r, looksLike, emoji, variant: 'plain', vx: 0, vy: 0, rot: 0, hitFlash: 0 };
+  ctx.save();
+  ctx.translate(cx, cy);
+  drawShell(ctx, o);
+  ctx.font = Math.round(r * 0.86) + 'px system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(emoji, 0, 0);
+  ctx.restore();
+}
+
 // Los disfrazados son el único caso en que la cáscara miente, así que se
 // anuncian: el aro discontinuo que gira dice "este no te lo creas, leé el
 // ícono". Sin esa marca, saber que el disfraz existe obligaba a desconfiar de

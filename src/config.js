@@ -58,6 +58,27 @@ export const CFG = {
     hp: 18,
   },
 
+  // La primerísima partida viene guionada. Un jugador nuevo que no sabe nada
+  // pierde las tres vidas en cuatro segundos, y esos cuatro segundos son todo
+  // lo que tenemos para convencerlo. Así que el primer objeto es una victoria
+  // fácil, el tercero le enseña a no tocar, y la ayuda se apaga sola.
+  //
+  // Solo aplica en partida libre: el desafío del día tiene que ser idéntico
+  // para todos los que lo juegan, incluido alguien que juega por primera vez.
+  opening: {
+    speedScale: 0.7,
+    intervalScale: 1.75,
+    until: 12,          // segundos; después corre como cualquier partida
+    script: [
+      { kind: 'danger', variant: 'plain' },
+      { kind: 'danger', variant: 'plain' },
+      { kind: 'safe', variant: 'plain' },
+      { kind: 'danger', variant: 'plain' },
+      { kind: 'safe', variant: 'plain' },
+      { kind: 'danger', variant: 'plain' },
+    ],
+  },
+
   // Las variantes entran de a una y espaciadas, para que cada mecánica se
   // aprenda sola sin tutorial. El peso es relativo entre las ya habilitadas.
   variants: {

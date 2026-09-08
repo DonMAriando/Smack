@@ -78,7 +78,7 @@ export function rollVariant({ rng, elapsed, boss, kind }) {
 }
 
 // Nace fuera de la pantalla, en un lado al azar, y viaja hacia el personaje.
-export function spawn({ rng, w, h, elapsed, boss, kind, variant = 'plain' }) {
+export function spawn({ rng, w, h, elapsed, boss, kind, variant = 'plain', speedScale = 1 }) {
   const src = pick(rng, kind === 'safe' ? pools.safe : pools.danger);
   const spec = VARIANT[variant];
   const margin = CFG.arena.spawnMargin;
@@ -97,7 +97,7 @@ export function spawn({ rng, w, h, elapsed, boss, kind, variant = 'plain' }) {
   const len = Math.hypot(dx, dy) || 1;
 
   const base = CFG.speed.base + elapsed * CFG.speed.ramp + (boss ? CFG.speed.bossBonus : 0);
-  const speed = Math.min(CFG.speed.max, base + rng() * CFG.speed.jitter);
+  const speed = Math.min(CFG.speed.max, base + rng() * CFG.speed.jitter) * speedScale;
 
   // Lo que la cáscara le dice al jugador. En los disfrazados miente, y por eso
   // esos vienen marcados con un aro giratorio que avisa que hay que leer el
