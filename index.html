@@ -3,8 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#111111" />
+  <meta name="theme-color" content="#101114" />
   <title>SMACK! — Reaction Game</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-180.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="description" content="Juego de reacción. Pegale a lo peligroso, no toques lo tierno." />
   <style>
     :root{
       --bg:#101114;
@@ -37,7 +43,9 @@
     #bossLabel{font-size:12px;font-weight:900;letter-spacing:.07em;margin-bottom:6px}
     #bossBar{height:9px;background:#2b2e35;border-radius:9px;overflow:hidden}
     #bossFill{height:100%;width:100%;background:var(--danger);transition:width .12s linear}
-    .centerCard{position:absolute;z-index:8;left:16px;right:16px;top:50%;transform:translateY(-50%);background:rgba(18,19,23,.94);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:24px;text-align:center;backdrop-filter:blur(12px)}
+    /* El tope de alto y el scroll son para pantallas cortas: con misiones,
+       insignias y dos botones la tarjeta de fin no entra en un iPhone SE. */
+    .centerCard{position:absolute;z-index:8;left:16px;right:16px;top:50%;transform:translateY(-50%);background:rgba(18,19,23,.94);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:24px;text-align:center;backdrop-filter:blur(12px);max-height:calc(100dvh - 24px);overflow-y:auto;-webkit-overflow-scrolling:touch}
     .logo{font-size:54px;font-weight:1000;letter-spacing:-.06em;margin:0 0 8px}
     .logo span{color:var(--accent)}
     .subtitle{color:var(--muted);font-size:15px;line-height:1.4;margin:0 auto 18px;max-width:360px}
@@ -52,6 +60,17 @@
     .recStrip div{background:#14161b;border:1px solid var(--line);border-radius:12px;padding:7px 11px;font-size:12px;color:var(--muted)}
     .recStrip b{color:var(--text);font-size:14px}
     #recordBadge{display:none;margin:0 0 14px;font-size:13px;font-weight:1000;letter-spacing:.04em;color:var(--accent);background:rgba(255,213,74,.1);border:1px solid rgba(255,213,74,.45);border-radius:12px;padding:10px}
+    #rewardBadge{display:none;margin:0 0 10px;font-size:13px;font-weight:1000;color:#181818;background:var(--safe);border-radius:12px;padding:10px;line-height:1.4}
+    #progressWrap{margin:14px 0 2px}
+    #progressLabel{font-size:11px;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px}
+    #progressBar{height:7px;background:#22252c;border-radius:7px;overflow:hidden}
+    #progressFill{height:100%;width:0;background:var(--accent);transition:width .3s ease}
+    #modeLabel{display:none;font-size:11px;font-weight:1000;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;margin:-4px 0 10px}
+    #missionList{display:grid;gap:6px;margin:0 0 14px;text-align:left}
+    #missionList div{display:flex;align-items:center;gap:8px;font-size:12.5px;background:#14161b;border:1px solid var(--line);border-radius:11px;padding:8px 10px;color:var(--muted)}
+    #missionList div.done{color:var(--text);border-color:rgba(96,229,158,.5);background:rgba(96,229,158,.09)}
+    #missionList b{margin-left:auto;font-size:11px;color:var(--muted)}
+    #missionList div.done b{color:var(--safe)}
     #gameOver{display:none}
     .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0}
     .stat{padding:12px;border-radius:15px;border:1px solid var(--line);background:#14161b}
@@ -96,12 +115,18 @@
         <div class="rule"><div class="emoji">❤️ 🐱 🎂</div><b>NO TOQUES</b><small>dejalo pasar</small></div>
       </div>
       <button id="startBtn" type="button">TOCAR PARA EMPEZAR</button>
+      <button id="dailyBtn" type="button" class="ghost">📅 DESAFÍO DEL DÍA</button>
       <div id="startRecords" class="recStrip"></div>
+      <div id="progressWrap">
+        <div id="progressLabel"></div>
+        <div id="progressBar"><div id="progressFill"></div></div>
+      </div>
       <div class="smallNote">45 segundos · 3 vidas · FEVER al combo x10</div>
     </section>
 
     <section id="gameOver" class="centerCard">
       <div class="logo">FIN<span>!</span></div>
+      <div id="modeLabel"></div>
       <p class="subtitle" id="endMessage">Eso fue rápido.</p>
       <div class="stats">
         <div class="stat"><b id="finalScore">0</b><span>Puntaje</span></div>
@@ -109,6 +134,8 @@
         <div class="stat"><b id="finalCombo">0</b><span>Combo máximo</span></div>
         <div class="stat"><b id="finalHits">0</b><span>Smacks</span></div>
       </div>
+      <div id="missionList"></div>
+      <div id="rewardBadge"></div>
       <div id="recordBadge"></div>
       <button id="restartBtn" type="button">OTRA VEZ</button>
       <button id="shareBtn" type="button" class="ghost">📤 COMPARTIR MI REACCIÓN</button>

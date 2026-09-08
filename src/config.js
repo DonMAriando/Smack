@@ -98,6 +98,12 @@ export const CFG = {
     shakeDecay: 10,        // por segundo, no por frame
     lastLifeTimeScale: 0.78,
     maxDeltaTime: 0.05,    // tope que evita túnel de colisión sin ralentizar
+    // La simulación avanza en pasos fijos. Si avanzara con el delta real, la
+    // velocidad de los objetos, el ritmo de spawn y las compuertas de las
+    // variantes dependerían del refresco de la pantalla, y dos jugadores del
+    // mismo desafío diario no jugarían la misma partida.
+    step: 1 / 120,
+    maxStepsPerFrame: 8,   // corta la espiral de muerte si el frame se atrasa
     restartGrace: 700,     // ms antes de que un tap en cualquier lado reinicie
     tapForgiveness: 24,    // px extra de radio para acertar
   },

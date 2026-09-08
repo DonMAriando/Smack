@@ -7,10 +7,20 @@
 // vida. Eso es lo que hace que el jugador sienta que está defendiendo a
 // alguien y no tocando figuritas.
 
+import { unlockedHair } from './progression.js';
+
 const SKIN = '#ffdcb4';
 const SKIN_SHADOW = '#e8bd90';
 const INK = '#22242b';
-const HAIR = '#3d2b23';
+const DEFAULT_HAIR = '#3d2b23';
+
+let hair = DEFAULT_HAIR;
+
+// Se refresca al empezar la partida, no en cada frame.
+export function refreshLook() {
+  const unlocked = unlockedHair();
+  hair = unlocked ? unlocked.color : DEFAULT_HAIR;
+}
 
 // A qué distancia del centro deja de mirar y entra en pánico.
 const PANIC_DISTANCE = 190;
@@ -89,7 +99,7 @@ function drawHead(ctx, r) {
 // silueta se distinga de cualquier otra carita redonda.
 function drawHair(ctx, r, mood) {
   const lift = mood === 'panic' || mood === 'hurt' ? 8 : 0;
-  ctx.fillStyle = HAIR;
+  ctx.fillStyle = hair;
   ctx.beginPath();
   ctx.moveTo(-r * 0.1, -r * 0.86);
   ctx.quadraticCurveTo(r * 0.5, -r * 1.5 - lift, r * 0.62, -r * 0.66);
@@ -156,7 +166,7 @@ function drawBrows(ctx, r, mood) {
   // la cara, así que el extremo interno se calcula aparte del externo.
   const tilt = mood === 'panic' ? 5 : mood === 'worried' ? 3.4 : mood === 'fever' ? -4.5 : 0.6;
 
-  ctx.strokeStyle = HAIR;
+  ctx.strokeStyle = hair;
   ctx.lineWidth = 3.2;
   ctx.lineCap = 'round';
   for (const side of [-1, 1]) {

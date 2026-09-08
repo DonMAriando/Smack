@@ -24,11 +24,46 @@ seguidos. Al terminar podés compartir una tarjeta de 1080x1080 con tu reacción
 - Celular: tap.
 - PC: click.
 
+## Modos
+
+- **Partida libre**: objetos al azar.
+- **Desafío del día**: la semilla se deriva de la fecha, así que todos los que
+  juegan hoy reciben la misma secuencia de objetos y las mismas misiones. Los
+  puntajes son comparables.
+
+## Objetos
+
+| | |
+|---|---|
+| Normales | un toque |
+| 🛡️ Blindados | tres toques rápidos |
+| ↩️ Deslizables | arrastralos por donde vinieron; durante el boss pegan el triple |
+| 🎭 Disfrazados | el halo de color miente, el ícono dice la verdad |
+
+## Progresión
+
+El puntaje de cada partida se acumula como experiencia y desbloquea objetos
+nuevos, colores de pelo y títulos. Cada partida trae tres misiones cortas que
+dan experiencia extra.
+
 ## Ejecutar
 
-Abrí `index.html` directamente en un navegador moderno.
+```
+npx http-server . -p 8123 -c-1
+```
 
-No necesita servidor, dependencias, build ni conexión a Internet.
+Y abrilo en `http://localhost:8123`. Hace falta servirlo por HTTP porque usa
+módulos ES y un service worker, y ninguno de los dos funciona desde `file://`.
+Para probar en el celular, entrá desde el teléfono a la IP de la máquina en la
+misma red.
+
+Sin dependencias ni paso de build. Los iconos se regeneran con
+`node scripts/make-icons.mjs`.
+
+## Instalable
+
+Es una PWA: se puede agregar a la pantalla de inicio y arranca sin conexión.
+Para que el navegador ofrezca instalarla hay que servirla por HTTPS.
 
 ## Publicar en itch.io
 

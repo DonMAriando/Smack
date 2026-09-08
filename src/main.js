@@ -21,8 +21,10 @@ el.game.addEventListener('pointercancel', pointerUp);
 // Si el dedo sale del canvas a mitad del gesto, el arrastre se cancela igual.
 el.game.addEventListener('pointerleave', pointerUp);
 
-el.startBtn.addEventListener('click', () => startGame());
-el.restartBtn.addEventListener('click', () => startGame());
+el.startBtn.addEventListener('click', () => startGame('free'));
+el.dailyBtn.addEventListener('click', () => startGame('daily'));
+// Repetir mantiene el modo: si venías del desafío del día, seguís en el día.
+el.restartBtn.addEventListener('click', () => startGame(s.mode));
 
 // Reintentar tiene que costar cero: un tap en cualquier lado de la pantalla de
 // fin, o la barra espaciadora en desktop. La ventana de gracia existe porque
@@ -33,13 +35,13 @@ el.app.addEventListener('pointerdown', (e) => {
   if (el.gameOver.style.display !== 'block') return;
   if (performance.now() < s.restartArmedAt) return;
   if (e.target.closest('button')) return;
-  startGame();
+  startGame(s.mode);
 });
 
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'Space' && e.code !== 'Enter') return;
   e.preventDefault();
-  if (!s.running) startGame();
+  if (!s.running) startGame(s.mode);
 });
 
 el.mute.addEventListener('click', () => {
@@ -66,6 +68,15 @@ el.shareBtn.addEventListener('click', async () => {
     setTimeout(() => (el.shareBtn.textContent = SHARE_LABEL), 1600);
   }
 });
+
+// El service worker es lo que hace que el juego se instale en la pantalla de
+// inicio y arranque sin conexión. Solo corre sobre HTTPS o localhost, así que
+// si falla no importa: el juego funciona igual.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
 
 renderStartRecords();
 drawIdle();

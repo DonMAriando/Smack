@@ -11,6 +11,7 @@ const EMPTY = {
   streak: 0,
   lastPlayed: null,
   totalSmacks: 0,
+  xp: 0,            // puntaje acumulado de todas las partidas
   unlocked: [],
   daily: {},        // { 'AAAA-MM-DD': mejorPuntajeDelDia }
   missionsDone: 0,

@@ -1,7 +1,8 @@
 import { CFG } from './config.js';
 import { pick } from './rng.js';
+import { unlockedObjects } from './progression.js';
 
-export const DANGER = [
+const BASE_DANGER = [
   { emoji: '🩴', name: 'CHANCLA' },
   { emoji: '🐟', name: 'PESCADO' },
   { emoji: '🍅', name: 'TOMATE' },
@@ -11,13 +12,25 @@ export const DANGER = [
   { emoji: '🥔', name: 'PAPA' },
 ];
 
-export const SAFE = [
+const BASE_SAFE = [
   { emoji: '❤️', name: 'CORAZÓN' },
   { emoji: '🐱', name: 'GATO' },
   { emoji: '🎂', name: 'TORTA' },
   { emoji: '🧸', name: 'OSITO' },
   { emoji: '🌈', name: 'ARCOÍRIS' },
 ];
+
+// Se resuelve al empezar cada partida y no en cada spawn: los desbloqueos no
+// cambian a mitad de una partida, y esto corre cientos de veces por minuto.
+let pools = { danger: BASE_DANGER, safe: BASE_SAFE };
+
+export function refreshPools() {
+  pools = {
+    danger: BASE_DANGER.concat(unlockedObjects('danger')),
+    safe: BASE_SAFE.concat(unlockedObjects('safe')),
+  };
+  return pools;
+}
 
 // Cada variante es una capa de habilidad distinta sobre el mismo tap.
 //
@@ -56,7 +69,7 @@ export function rollVariant({ rng, elapsed, boss, kind }) {
 
 // Nace fuera de la pantalla, en un lado al azar, y viaja hacia el personaje.
 export function spawn({ rng, w, h, elapsed, boss, kind, variant = 'plain' }) {
-  const src = kind === 'safe' ? pick(rng, SAFE) : pick(rng, DANGER);
+  const src = pick(rng, kind === 'safe' ? pools.safe : pools.danger);
   const spec = VARIANT[variant];
   const margin = CFG.arena.spawnMargin;
 

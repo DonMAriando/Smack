@@ -2,8 +2,12 @@ import { CFG, reactionRank } from './config.js';
 import { makeRng } from './rng.js';
 import { save, persist, touchStreak } from './save.js';
 import { impact, blip, haptic, ensureAudio, HAPTIC } from './feedback.js';
-import { spawn, rollKind, rollVariant } from './entities.js';
-import { el, updateHud, showToast, renderStartRecords } from './hud.js';
+import { spawn, rollKind, rollVariant, refreshPools } from './entities.js';
+import { refreshLook } from './character.js';
+import { pickMissions, evaluate, earnedXp } from './missions.js';
+import { addXp, describe } from './progression.js';
+import { dailySeed, recordDaily } from './daily.js';
+import { el, updateHud, showToast, renderStartRecords, renderMissions } from './hud.js';
 import { draw } from './render.js';
 
 const canvas = el.game;
@@ -32,10 +36,20 @@ export const s = {
   shake: 0,
   hitstop: 0,
   timeScale: 1,
+  accumulator: 0,
   restartArmedAt: 0,
   hurtUntil: 0,        // hasta cuándo el personaje muestra la cara de golpe
   seenVariants: new Set(),
   rng: Math.random,
+
+  mode: 'free',
+  missions: [],
+  // Contadores que las misiones consultan. Están acá y no dentro de cada
+  // misión para poder agregar objetivos nuevos sin tocar el game loop.
+  deflects: 0,
+  armorBreaks: 0,
+  bossKos: 0,
+  livesLost: 0,
 };
 
 export function resize() {
@@ -70,20 +84,40 @@ function reset(seed) {
   s.shake = 0;
   s.hitstop = 0;
   s.timeScale = 1;
+  s.accumulator = 0;
   s.hurtUntil = 0;
   s.seenVariants = new Set();
+  s.deflects = 0;
+  s.armorBreaks = 0;
+  s.bossKos = 0;
+  s.livesLost = 0;
   grab = null;
   s.rng = seed === undefined ? Math.random : makeRng(seed);
   updateHud(s);
 }
 
-export function startGame(seed) {
-  reset(seed);
+export function startGame(mode = 'free') {
+  const daily = mode === 'daily';
+  reset(daily ? dailySeed() : undefined);
+  s.mode = mode;
+
+  // Las misiones del diario salen también de la fecha, así que todos reciben
+  // las mismas. Van con su propio rng para no consumir de la secuencia de
+  // spawns, que si no se desincronizaría entre jugadores.
+  s.missions = pickMissions(daily ? makeRng(dailySeed() ^ 0x9e3779b9) : Math.random);
+
+  // Los desbloqueos no cambian a mitad de partida, así que se resuelven una
+  // sola vez acá.
+  refreshPools();
+  refreshLook();
+
   s.running = true;
   s.last = performance.now();
   el.start.style.display = 'none';
   el.gameOver.style.display = 'none';
   el.recordBadge.style.display = 'none';
+  el.rewardBadge.style.display = 'none';
+  el.modeLabel.style.display = 'none';
   el.reactionLine.textContent = '';
   ensureAudio();
   requestAnimationFrame(loop);
@@ -105,8 +139,15 @@ export function endGame() {
     s.bestReaction !== null && !firstRun &&
     (save.bestReaction === null || s.bestReaction < save.bestReaction);
 
+  evaluate(s.missions, s);
+  const missionXp = earnedXp(s.missions);
+  const doneCount = s.missions.filter((m) => m.done).length;
+  const rewards = addXp(finalScore + missionXp);
+  const dailyRecord = s.mode === 'daily' && recordDaily(finalScore);
+
   touchStreak();
   save.runs++;
+  save.missionsDone += doneCount;
   save.totalSmacks += s.hits;
   // Se guarda siempre, aunque no lo festejemos en pantalla.
   if (finalScore > save.bestScore) save.bestScore = finalScore;
@@ -121,7 +162,21 @@ export function endGame() {
   el.finalCombo.textContent = s.maxCombo;
   el.finalHits.textContent = s.hits;
 
-  if (reactionRecord && scoreRecord) badge('🏆 DOBLE RÉCORD: puntaje y reacción');
+  el.modeLabel.textContent = '📅 Desafío del día';
+  el.modeLabel.style.display = s.mode === 'daily' ? 'block' : 'none';
+  renderMissions(s.missions);
+
+  if (rewards.length) {
+    el.rewardBadge.innerHTML = '🎁 DESBLOQUEADO<br>' + rewards.map(describe).join(' · ');
+    el.rewardBadge.style.display = 'block';
+    impact({ pitch: 520, dur: 0.6, vol: 0.6, bright: 3600 });
+    haptic(HAPTIC.record);
+  } else {
+    el.rewardBadge.style.display = 'none';
+  }
+
+  if (dailyRecord) badge('📅 MEJOR DEL DÍA: ' + finalScore);
+  else if (reactionRecord && scoreRecord) badge('🏆 DOBLE RÉCORD: puntaje y reacción');
   else if (reactionRecord) badge('⚡ REACCIÓN RÉCORD: ' + Math.round(s.bestReaction) + ' ms');
   else if (scoreRecord) badge('🏆 PUNTAJE RÉCORD: ' + finalScore);
   else el.recordBadge.style.display = 'none';
@@ -130,7 +185,8 @@ export function endGame() {
     el.endMessage.textContent = 'Rompiste tu propio techo.';
     impact({ pitch: 420, dur: 0.5, vol: 0.55, bright: 3200 });
     haptic(HAPTIC.record);
-  } else if (finalScore >= 7000) el.endMessage.textContent = 'Ok. Eso ya fue violencia profesional.';
+  } else if (doneCount === 3) el.endMessage.textContent = '¡Las tres misiones! +' + missionXp + ' de experiencia.';
+  else if (finalScore >= 7000) el.endMessage.textContent = 'Ok. Eso ya fue violencia profesional.';
   else if (finalScore >= 4500) el.endMessage.textContent = 'Tu dedo está peligrosamente entrenado.';
   else if (finalScore >= 2500) el.endMessage.textContent = 'Bien. Ahora hacelo más rápido.';
   else if (previousBest > 0 && previousBest - finalScore < 400)
@@ -170,6 +226,7 @@ function damageBoss(n) {
   s.bossHp -= n;
   if (s.bossHp > 0) return;
   s.boss = false;
+  s.bossKos++;
   s.score += CFG.scoring.bossKoBonus;
   showToast('👵 BOSS KO +' + CFG.scoring.bossKoBonus);
   impact({ pitch: 90, dur: 0.55, vol: 0.7, bright: 900 });
@@ -243,6 +300,7 @@ function deflect(o) {
 
   o.deflected = true;
   o.hitFlash = 0.2;
+  s.deflects++;
   s.bestReaction = s.bestReaction === null ? ms : Math.min(s.bestReaction, ms);
   s.combo++;
   s.maxCombo = Math.max(s.maxCombo, s.combo);
@@ -281,6 +339,7 @@ function hitDanger(o) {
   const ms = reactionOf(o, now);
   const sc = CFG.scoring;
 
+  if (o.variant === 'armored') s.armorBreaks++;
   s.bestReaction = s.bestReaction === null ? ms : Math.min(s.bestReaction, ms);
   s.combo++;
   s.maxCombo = Math.max(s.maxCombo, s.combo);
@@ -313,6 +372,7 @@ function hitDanger(o) {
 function hitSafe(o) {
   s.combo = 0;
   s.lives--;
+  s.livesLost++;
   el.reactionLine.textContent = 'NOOO · ' + o.name;
   showToast('💔 NO TOQUES');
   burst(o.x, o.y, '💔', false);
@@ -482,6 +542,7 @@ function update(dt, now) {
       } else {
         s.combo = 0;
         s.lives--;
+        s.livesLost++;
         showToast('💥 TE PEGÓ');
         impact({ pitch: 58, dur: 0.4, vol: 0.65, bright: 340 });
         haptic(HAPTIC.hurt);
@@ -524,7 +585,18 @@ export function loop(now) {
     return;
   }
 
-  update(real * s.timeScale, now);
+  // La cámara lenta escala cuánto tiempo entra al acumulador, no el tamaño del
+  // paso: así el mundo avanza más despacio en el reloj de pared pero elapsed
+  // sigue creciendo en incrementos exactos e idénticos para todos.
+  s.accumulator += real * s.timeScale;
+  let steps = 0;
+  while (s.accumulator >= CFG.feel.step && steps < CFG.feel.maxStepsPerFrame) {
+    update(CFG.feel.step, now);
+    s.accumulator -= CFG.feel.step;
+    steps++;
+    if (!s.running) break;
+  }
+
   draw(ctx, s, now, real);
   if (s.running) requestAnimationFrame(loop);
 }
