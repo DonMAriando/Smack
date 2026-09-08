@@ -2,7 +2,11 @@
 
 SMACK! es un mini juego de reacción vertical, pensado primero para celular.
 
-**Jugar: https://smack-41n.pages.dev**
+## ▶ Jugar
+
+### **https://smack-41n.pages.dev**
+
+Anda en el celular y se puede instalar en la pantalla de inicio.
 
 ## Cómo jugar
 
@@ -123,7 +127,8 @@ conviene usar la URL publicada.
 node scripts/deploy.mjs
 ```
 
-Arma `dist/` y lo sube a Cloudflare Pages. Es un solo comando a propósito: son
+Arma `dist/` y lo sube a Cloudflare Pages, que es lo que sirve
+https://smack-41n.pages.dev. Es un solo comando a propósito: son
 dos pasos y el que se olvida siempre es el build, con lo cual el sitio queda
 mostrando una versión vieja aunque el deploy diga que salió bien.
 
