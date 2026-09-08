@@ -33,6 +33,7 @@ export const s = {
   hitstop: 0,
   timeScale: 1,
   restartArmedAt: 0,
+  hurtUntil: 0,        // hasta cuándo el personaje muestra la cara de golpe
   seenVariants: new Set(),
   rng: Math.random,
 };
@@ -69,6 +70,7 @@ function reset(seed) {
   s.shake = 0;
   s.hitstop = 0;
   s.timeScale = 1;
+  s.hurtUntil = 0;
   s.seenVariants = new Set();
   grab = null;
   s.rng = seed === undefined ? Math.random : makeRng(seed);
@@ -317,6 +319,7 @@ function hitSafe(o) {
   impact({ pitch: 70, dur: 0.34, vol: 0.6, bright: 420 });
   haptic(HAPTIC.mistake);
   s.hitstop = CFG.feel.hitstopMiss;
+  s.hurtUntil = performance.now() + 260;
   s.shake = 13;
   o.dead = true;
   updateTension();
@@ -483,6 +486,7 @@ function update(dt, now) {
         impact({ pitch: 58, dur: 0.4, vol: 0.65, bright: 340 });
         haptic(HAPTIC.hurt);
         s.hitstop = CFG.feel.hitstopHurt;
+        s.hurtUntil = now + 260;
         s.shake = 16;
         updateTension();
         if (s.lives <= 0) {

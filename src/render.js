@@ -1,4 +1,5 @@
 import { CFG } from './config.js';
+import { drawCharacter } from './character.js';
 
 export function draw(ctx, s, now, real) {
   const { w, h } = s;
@@ -34,18 +35,6 @@ function drawArena(ctx, w, h, cx, cy) {
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
-}
-
-function drawCharacter(ctx, s, cx, cy, now) {
-  const pulse = 1 + Math.sin(now / 180) * 0.025;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.scale(pulse, pulse);
-  ctx.font = '64px system-ui';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(s.lives === 1 ? '😰' : s.boss ? '😱' : '😐', 0, 0);
-  ctx.restore();
 }
 
 function drawObjects(ctx, s) {
