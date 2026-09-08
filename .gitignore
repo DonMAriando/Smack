@@ -1,0 +1,6 @@
+# Estado local de wrangler: la cuenta de Cloudflare y cachés del deploy.
+# Es de esta máquina, no del proyecto.
+.wrangler/
+
+# Por si algún día aparece un package.json.
+node_modules/

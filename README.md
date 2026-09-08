@@ -2,6 +2,8 @@
 
 SMACK! es un mini juego de reacción vertical, pensado primero para celular.
 
+**Jugar: https://smack-41n.pages.dev**
+
 ## Cómo jugar
 
 - Tocá los objetos peligrosos antes de que lleguen al personaje.
@@ -110,7 +112,30 @@ Sin dependencias en runtime. Los iconos se regeneran con
 ## Instalable
 
 Es una PWA: se puede agregar a la pantalla de inicio y arranca sin conexión.
-Para que el navegador ofrezca instalarla hay que servirla por HTTPS.
+Para que el navegador ofrezca instalarla hay que servirla por HTTPS, cosa que
+la URL de arriba ya cumple. Desde `localhost` también, pero no desde la IP de
+la máquina en la red local, así que para probar la instalación en el celular
+conviene usar la URL publicada.
+
+## Publicar
+
+```
+node scripts/deploy.mjs
+```
+
+Arma `dist/` y lo sube a Cloudflare Pages. Es un solo comando a propósito: son
+dos pasos y el que se olvida siempre es el build, con lo cual el sitio queda
+mostrando una versión vieja aunque el deploy diga que salió bien.
+
+Se sube `dist/` y no la raíz del repo porque `dist/` ya es un sitio completo y
+autocontenido, sin el README ni los scripts ni el historial.
+
+El repo es privado y Cloudflare no lo mira: los archivos se suben desde la
+máquina. Por eso no hay que darle acceso al código para tener el sitio en
+línea, y por eso tampoco se publica solo al hacer `git push`. GitHub Pages
+sería automático, pero en repos privados es de pago.
+
+La primera vez hace falta `npx wrangler login`.
 
 ## Publicar en itch.io
 
