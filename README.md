@@ -4,7 +4,7 @@ SMACK! es un mini juego de reacción vertical, pensado primero para celular.
 
 ## ▶ Jugar
 
-### **https://smack-41n.pages.dev**
+### **https://donmariando.github.io/Smack/**
 
 Anda en el celular y se puede instalar en la pantalla de inicio.
 
@@ -123,24 +123,16 @@ conviene usar la URL publicada.
 
 ## Publicar
 
-```
-node scripts/deploy.mjs
-```
+Cada push a `main` publica el juego en GitHub Pages:
 
-Arma `dist/` y lo sube a Cloudflare Pages, que es lo que sirve
-https://smack-41n.pages.dev. Es un solo comando a propósito: son
-dos pasos y el que se olvida siempre es el build, con lo cual el sitio queda
-mostrando una versión vieja aunque el deploy diga que salió bien.
+**https://donmariando.github.io/Smack/**
 
-Se sube `dist/` y no la raíz del repo porque `dist/` ya es un sitio completo y
-autocontenido, sin el README ni los scripts ni el historial.
+El workflow arma `dist/` y lo sube. Se publica el build y no la raíz del repo
+para que el sitio sea el juego, no el README ni los scripts, y para que un
+`dist` viejo commiteado no se sirva por error.
 
-El repo es privado y Cloudflare no lo mira: los archivos se suben desde la
-máquina. Por eso no hay que darle acceso al código para tener el sitio en
-línea, y por eso tampoco se publica solo al hacer `git push`. GitHub Pages
-sería automático, pero en repos privados es de pago.
-
-La primera vez hace falta `npx wrangler login`.
+Cloudflare Pages sigue existiendo en https://smack-41n.pages.dev si hace falta
+un espejo. Eso sí es a mano: `node scripts/deploy.mjs`.
 
 ## Publicar en itch.io
 
